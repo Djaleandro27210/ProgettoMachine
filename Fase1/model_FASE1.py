@@ -12,7 +12,7 @@ una probabilità (Positivo vs Negativo).
 
 import torch
 import torch.nn as nn
-from config import WINDOW_SIZE
+from config_FASE1 import WINDOW_SIZE
 
 class Emotion1DCNN(nn.Module):
     def __init__(self, window_size=WINDOW_SIZE):

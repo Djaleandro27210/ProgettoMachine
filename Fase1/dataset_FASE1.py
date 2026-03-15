@@ -27,7 +27,8 @@ import numpy as np
 # ==========================================
 # IMPORTIAMO LE COSTANTI DAL CONFIG
 # ==========================================
-from config import SPLIT_INDEX_PATH, WINDOW_SIZE
+
+from config_FASE1 import SPLIT_INDEX_PATH, WINDOW_SIZE
 
 class PopaneDataset(Dataset):
     def __init__(self, split_type="train"):

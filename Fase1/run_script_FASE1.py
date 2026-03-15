@@ -34,9 +34,12 @@ if __name__ == "__main__":
     # run_script("src/split_data.py")
     
     # --- FASE 2: ADDESTRAMENTO ---
-    run_script("src/train.py")
+    run_script("src/Fase1/train_FASE1.py")
     
     # --- FASE 3: TEST FINALE ---
-    run_script("src/test.py")
-    
+    run_script("src/Fase1/test_FASE1.py")
+    # --- FASE 4: VALUTAZIONE COMPLETA E STAMPA RISULTATI ---
+    # Sostituisci "src/Fase1/evaluate.py" con il percorso esatto dove hai salvato 
+    # il codice di "evaluate.py" (quello con valuta_modello)
+    run_script("src/Fase1/evaluate.py")
     print("\n🎉 TUTTA LA PIPELINE È TERMINATA CON SUCCESSO! IL MODELLO È PRONTO! 🎉")

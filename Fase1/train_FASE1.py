@@ -17,12 +17,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-import os
 
 # Importiamo le nostre "creature" e i parametri dal config
-from config import BATCH_SIZE, LEARNING_RATE, EPOCHS, MODEL_SAVE_PATH
-from dataset import PopaneDataset
-from model import Emotion1DCNN
+from config_FASE1 import BATCH_SIZE, LEARNING_RATE, EPOCHS, MODEL_SAVE_PATH
+from dataset_FASE1 import PopaneDataset
+from model_FASE1 import Emotion1DCNN
 
 def train_model():
     # 1. SETUP DEL DISPOSITIVO (GPU vs CPU)
@@ -42,9 +41,28 @@ def train_model():
     # 3. INIZIALIZZAZIONE DELLA RETE E DEGLI STRUMENTI
     model = Emotion1DCNN().to(device) # Spostiamo la rete sulla GPU (se c'è)
     
-    # Loss Function: BCEWithLogitsLoss
-    # (È più stabile numericamente rispetto a fare Sigmoid + BCE Loss separate)
-    criterion = nn.BCEWithLogitsLoss()
+    # --- MODIFICA PER IL BILANCIAMENTO DELLE CLASSI ---
+    print("⚖️ Calcolo dei pesi per bilanciare le classi...")
+    num_positives = 0
+    num_negatives = 0
+    
+    # Facciamo un rapido giro sui dati di training per contare le classi
+    for _, labels in train_loader:
+        num_positives += labels.sum().item()
+        num_negatives += (labels == 0).sum().item()
+
+    # La formula per pos_weight nella BCE è: (numero di esempi negativi) / (numero di esempi positivi)
+    # Se per qualche motivo non ci sono positivi (evitiamo la divisione per zero), impostiamo a 1.0
+    weight_value = num_negatives / num_positives if num_positives > 0 else 1.0
+    
+    # Trasformiamo il valore in un tensore di PyTorch e lo spostiamo sul device corretto
+    pos_weight = torch.tensor([weight_value]).to(device)
+    print(f"📊 Esempi Negativi (0): {int(num_negatives)} | Esempi Positivi (1): {int(num_positives)}")
+    print(f"⚖️ Moltiplicatore pos_weight calcolato: {weight_value:.2f}")
+
+    # Loss Function: BCEWithLogitsLoss con le "multe" salatissime per gli errori sulla classe minoritaria!
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    # --------------------------------------------------
     
     # Ottimizzatore: Adam (il migliore per iniziare, aggiusta i pesi in base all'errore)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -65,8 +83,7 @@ def train_model():
         # Iteriamo su tutti i batch del training set
         # AGGIUNTA VIP: Usiamo enumerate per contare a che batch siamo
         for batch_idx, (inputs, labels) in enumerate(train_loader):
-            # AGGIUNGI QUESTA RIGA SUBITO SOTTO PER FERMARTI DOPO 5 BATCH (160 esempi)--BOG
-            if batch_idx > 5: break
+            
             inputs, labels = inputs.to(device), labels.to(device)
             labels = labels.unsqueeze(1)
 
@@ -100,7 +117,6 @@ def train_model():
         with torch.no_grad():
            # Aggiungiamo enumerate così batch_idx riparte da 0 per la validazione
             for batch_idx_val, (inputs, labels) in enumerate(val_loader):
-                if batch_idx_val > 2: break  # Ora si ferma correttamente dopo 3 batch
                 
                 inputs, labels = inputs.to(device), labels.to(device)
                 labels = labels.unsqueeze(1)
@@ -112,6 +128,7 @@ def train_model():
                 predictions = (torch.sigmoid(outputs) > 0.5).float()
                 correct_val += (predictions == labels).sum().item()
                 total_val += labels.size(0)
+                
         # Calcolo medie di fine epoca per il Validation
         # AGGIUNGIAMO IL CONTROLLO ANTI-CRASH
         if total_val > 0:
@@ -121,9 +138,6 @@ def train_model():
             epoch_val_loss = 0.0
             epoch_val_acc = 0.0
             print("⚠️ Attenzione: Il Validation Set sembra vuoto!")
-        # Calcolo medie di fine epoca per il Validation
-     #   epoch_val_loss = running_val_loss / total_val
-      #  epoch_val_acc = (correct_val / total_val) * 100
 
         # Stampa dei risultati di questa epoca
         print(f"Epoca [{epoch+1}/{EPOCHS}] | "

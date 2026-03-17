@@ -19,7 +19,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 # Importiamo le nostre "creature" e i parametri dal config
-from config_FASE1 import BATCH_SIZE, LEARNING_RATE, EPOCHS, MODEL_SAVE_PATH
+from config_FASE1 import BATCH_SIZE, LEARNING_RATE, EPOCHS, MODEL_SAVE_PATH, WEIGHT_DEECAY
 from dataset_FASE1 import PopaneDataset
 from model_FASE1 import Emotion1DCNN
 
@@ -47,7 +47,8 @@ def train_model():
     num_negatives = 0
     
     # Facciamo un rapido giro sui dati di training per contare le classi
-    for _, labels in train_loader:
+    for i, (inputs, labels) in enumerate(train_loader):
+        print(f"⏳ Lettura batch {i+1} di {len(train_loader)} in corso...") # LA TUA STAMPA DI DEBUG
         num_positives += labels.sum().item()
         num_negatives += (labels == 0).sum().item()
 
@@ -65,7 +66,9 @@ def train_model():
     # --------------------------------------------------
     
     # Ottimizzatore: Adam (il migliore per iniziare, aggiusta i pesi in base all'errore)
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+   # Ottimizzatore: Adam (il migliore per iniziare, aggiusta i pesi in base all'errore)
+
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DEECAY)
 
     # Variabile per ricordarci qual è stata l'accuratezza migliore e salvare quel modello
     best_val_accuracy = 0.0

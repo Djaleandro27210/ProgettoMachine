@@ -33,10 +33,28 @@ def train_early_fusion():
     # 2. Inizializzazione Rete Multimodale
     model = MultimodalEarlyFusionCNN().to(device)
     
-    # IMPORTANTE: Ti consiglio di aggiungere pos_weight se le classi sono sbilanciate!
-    # Se non lo usi, metti solo nn.BCEWithLogitsLoss()
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    # --- MODIFICA VIP: Calcolo DINAMICO dei pesi (Stile Fase 1) ---
+    print("⚖️ Calcolo dei pesi per bilanciare le classi in Early Fusion...")
+    num_positives = 0
+    num_negatives = 0
+    
+    # Contiamo dinamicamente guardando il vero train_loader
+    for inputs, labels in train_loader:
+        num_positives += labels.sum().item()
+        num_negatives += (labels == 0).sum().item()
+
+    weight_value = num_negatives / num_positives if num_positives > 0 else 1.0
+    pos_weight = torch.tensor([weight_value]).to(device)
+    
+    print(f"📊 Esempi Negativi (0): {int(num_negatives)} | Esempi Positivi (1): {int(num_positives)}")
+    print(f"⚖️ Moltiplicatore pos_weight calcolato: {weight_value:.4f}")
+
+    # 1. Loss con il peso dinamico perfetto
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    
+    # 2. Ottimizzatore con weight_decay per costringerla a guardare TUTTI i segnali
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
+    # --------------------------------------------------------------
 
     best_val_accuracy = 0.0
 

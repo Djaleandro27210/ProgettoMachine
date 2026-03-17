@@ -44,6 +44,8 @@ EMOTION_MAP = {
 # ==========================================
 # 3. PARAMETRI DI TRAINING (Hyperparameters)
 # ==========================================
+#PESI PER GESTIONE CLASSI SBILANCIATE (pos_weight per BCEWithLogitsLoss)
+WEIGHT_DEECAY = 1e-4
 # Quante fettine legge la rete prima di aggiornare i pesi
 BATCH_SIZE = 32
 
@@ -51,7 +53,7 @@ BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 
 # Quante volte la rete vedrà l'INTERO dataset (tutte le 86.850 fettine)
-EPOCHS = 20
+EPOCHS = 40
 
 # Dove salveremo il "cervello" della rete una volta addestrata
 MODEL_SAVE_PATH = os.path.join(PROCESSED_DIR, "best_emotion_model.pth")

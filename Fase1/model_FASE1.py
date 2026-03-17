@@ -25,14 +25,14 @@ class Emotion1DCNN(nn.Module):
             # C1: 18 filtri (kernel_size=7 come da paper) --> Output: (124)
 
             nn.Conv1d(in_channels=1, out_channels=18, kernel_size=7),
-            nn.BatchNorm1d(18),
+           nn.BatchNorm1d(18),
             nn.ReLU(),
             # S1: Down-sampling (Pooling)-->output: (62)
             nn.MaxPool1d(kernel_size=2),
             
             # C2: 18 filtri (kernel_size=7) --> Output: (56)
             nn.Conv1d(in_channels=18, out_channels=18, kernel_size=7),
-            nn.BatchNorm1d(18),
+           nn.BatchNorm1d(18),
             nn.ReLU(),
             # S2: Down-sampling (Pooling)-->output: (28)
             nn.MaxPool1d(kernel_size=2)
@@ -53,7 +53,7 @@ class Emotion1DCNN(nn.Module):
         self.classifier = nn.Sequential(
             nn.Linear(self.flatten_size, 64),
             nn.ReLU(),
-            nn.Dropout(0.3), # Dropout al 30% per evitare l'Overfitting!
+            nn.Dropout(0.4), # Dropout al 30% per evitare l'Overfitting!
             nn.Linear(64, 1) # Output: 1 singolo neurone (per classificazione Binaria)
         )
 

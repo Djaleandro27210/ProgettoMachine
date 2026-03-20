@@ -37,7 +37,6 @@ if __name__ == "__main__":
     run_script("src/Fase2/early_fusion/train_FASE2_early.py")
     
     # --- FASE 3: TEST FINALE ---
-    run_script("src/Fase2/early_fusion/test_FASE2_early.py")
     # --- FASE 4: VALUTAZIONE COMPLETA E STAMPA RISULTATI ---
     # Sostituisci "src/Fase1/evaluate.py" con il percorso esatto dove hai salvato 
     # il codice di "evaluate.py" (quello con valuta_modello)

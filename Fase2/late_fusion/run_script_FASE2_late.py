@@ -10,7 +10,7 @@ import time
 
 def run_script(script_path):
     print(f"\n{'='*60}")
-    print(f"🚀 AVVIO FASE: {script_path}")
+    print(f"🚀 AVVIO FASE 2: {script_path}")
     print(f"{'='*60}\n")
     
     # Esegue lo script come se lo lanciassi tu dal terminale
@@ -34,12 +34,11 @@ if __name__ == "__main__":
     # run_script("src/split_data.py")
     
     # --- FASE 2: ADDESTRAMENTO ---
-    run_script("src/Fase1/train_FASE1.py")
+    run_script("src/Fase2/late_fusion/train_FASE2_late.py")
     
-    # --- FASE 3: TEST FINALE ---
- 
+
     # --- FASE 4: VALUTAZIONE COMPLETA E STAMPA RISULTATI ---
     # Sostituisci "src/Fase1/evaluate.py" con il percorso esatto dove hai salvato 
     # il codice di "evaluate.py" (quello con valuta_modello)
-    run_script("src/Fase1/evaluate.py")
+    run_script("src/Fase2/late_fusion/evaluate.py")
     print("\n🎉 TUTTA LA PIPELINE È TERMINATA CON SUCCESSO! IL MODELLO È PRONTO! 🎉")

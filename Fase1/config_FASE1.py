@@ -53,7 +53,7 @@ BATCH_SIZE = 32
 LEARNING_RATE = 0.0001
 
 # Quante volte la rete vedrà l'INTERO dataset (tutte le 86.850 fettine)
-EPOCHS = 40
+EPOCHS = 80
 
 # Dove salveremo il "cervello" della rete una volta addestrata
 MODEL_SAVE_PATH = os.path.join(PROCESSED_DIR, "best_emotion_model.pth")

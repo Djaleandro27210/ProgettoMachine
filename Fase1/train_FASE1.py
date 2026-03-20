@@ -48,12 +48,10 @@ def train_model():
     
     # Facciamo un rapido giro sui dati di training per contare le classi
     for i, (inputs, labels) in enumerate(train_loader):
-        print(f"⏳ Lettura batch {i+1} di {len(train_loader)} in corso...") # LA TUA STAMPA DI DEBUG
         num_positives += labels.sum().item()
         num_negatives += (labels == 0).sum().item()
 
     # La formula per pos_weight nella BCE è: (numero di esempi negativi) / (numero di esempi positivi)
-    # Se per qualche motivo non ci sono positivi (evitiamo la divisione per zero), impostiamo a 1.0
     weight_value = num_negatives / num_positives if num_positives > 0 else 1.0
     
     # Trasformiamo il valore in un tensore di PyTorch e lo spostiamo sul device corretto
@@ -63,15 +61,21 @@ def train_model():
 
     # Loss Function: BCEWithLogitsLoss con le "multe" salatissime per gli errori sulla classe minoritaria!
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    # --------------------------------------------------
     
-    # Ottimizzatore: Adam (il migliore per iniziare, aggiusta i pesi in base all'errore)
-   # Ottimizzatore: Adam (il migliore per iniziare, aggiusta i pesi in base all'errore)
-
+    # Ottimizzatore: Adam
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DEECAY)
 
-    # Variabile per ricordarci qual è stata l'accuratezza migliore e salvare quel modello
-    best_val_accuracy = 0.0
+    # =========================================================
+    # NUOVO: INIZIALIZZAZIONE SCHEDULER E EARLY STOPPING
+    # =========================================================
+    # Scheduler: Dimezza il learning rate (factor=0.5) se la Val Loss non migliora per 4 epoche di fila
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=4)
+
+    # Early Stopping: Limite di epoche senza miglioramenti prima di staccare la spina
+    patience_early_stopping = 10
+    epochs_no_improve = 0
+    best_val_loss = float('inf') # Partiamo con un errore infinito per far scattare subito il salvataggio
+    # =========================================================
 
     # 4. IL CICLO DI ADDESTRAMENTO (THE LOOP)
     print(f"\nInizia il training per {EPOCHS} Epoche...\n")
@@ -84,7 +88,6 @@ def train_model():
         total_train = 0
 
         # Iteriamo su tutti i batch del training set
-        # AGGIUNTA VIP: Usiamo enumerate per contare a che batch siamo
         for batch_idx, (inputs, labels) in enumerate(train_loader):
             
             inputs, labels = inputs.to(device), labels.to(device)
@@ -101,9 +104,8 @@ def train_model():
             correct_train += (predictions == labels).sum().item()
             total_train += labels.size(0)
 
-            # --- IL NOSTRO CONTACHILOMETRI ---
             # Stampa un aggiornamento ogni 100 batch completati
-            if (batch_idx + 1) % 100 == 0:
+            if (batch_idx + 1) % 500 == 0: # Ho alzato a 500 così spamma meno sul terminale
                 print(f"   -> Sto faticando... Elaborato batch {batch_idx + 1}/{len(train_loader)}")
 
         # Calcolo medie di fine epoca per il Training
@@ -116,9 +118,8 @@ def train_model():
         correct_val = 0
         total_val = 0
 
-        # torch.no_grad() spegne il calcolo delle correzioni (risparmia tantissima RAM) SERVE PER EVITARE OVERFITTING
+        # torch.no_grad() spegne il calcolo delle correzioni
         with torch.no_grad():
-           # Aggiungiamo enumerate così batch_idx riparte da 0 per la validazione
             for batch_idx_val, (inputs, labels) in enumerate(val_loader):
                 
                 inputs, labels = inputs.to(device), labels.to(device)
@@ -133,12 +134,11 @@ def train_model():
                 total_val += labels.size(0)
                 
         # Calcolo medie di fine epoca per il Validation
-        # AGGIUNGIAMO IL CONTROLLO ANTI-CRASH
         if total_val > 0:
             epoch_val_loss = running_val_loss / total_val
             epoch_val_acc = (correct_val / total_val) * 100
         else:
-            epoch_val_loss = 0.0
+            epoch_val_loss = float('inf') # Se crasha, diamo un errore infinito
             epoch_val_acc = 0.0
             print("⚠️ Attenzione: Il Validation Set sembra vuoto!")
 
@@ -147,14 +147,36 @@ def train_model():
               f"Train Loss: {epoch_train_loss:.4f} - Train Acc: {epoch_train_acc:.2f}% | "
               f"Val Loss: {epoch_val_loss:.4f} - Val Acc: {epoch_val_acc:.2f}%")
 
-        # 5. SALVATAGGIO DEL MODELLO MIGLIORE
-        # Se in questa epoca abbiamo battuto il record sul Validation Set, salviamo la rete!
-        if epoch_val_acc > best_val_accuracy:
-            best_val_accuracy = epoch_val_acc
-            torch.save(model.state_dict(), MODEL_SAVE_PATH)
-            print(f"⭐ Nuovo record! Modello salvato in {MODEL_SAVE_PATH}")
+        # =========================================================
+        # NUOVO: LOGICA DI SCHEDULING, EARLY STOPPING E SALVATAGGIO
+        # =========================================================
+        
+        # 1. Il Cecchino: Aggiorna il Learning Rate guardando se la Loss è in stallo
+        scheduler.step(epoch_val_loss)
+        
+        # Stampa per farti vedere se il Cecchino ha rimpicciolito il passo
+        current_lr = optimizer.param_groups[0]['lr']
+        if current_lr < LEARNING_RATE and epochs_no_improve == 0: 
+             print(f"📉 [SCHEDULER] Il learning rate è stato abbassato a: {current_lr}")
 
-    print(f"\n🎉 Addestramento Completato! Miglior Accuratezza di Validazione: {best_val_accuracy:.2f}%")
+        # 2. Controllo Early Stopping: La Loss è scesa?
+        if epoch_val_loss < best_val_loss:
+            best_val_loss = epoch_val_loss
+            epochs_no_improve = 0 # Resetta il contatore fallimenti
+            # SALVA IL MODELLO SOLO QUANDO L'ERRORE (LOSS) È AL MINIMO ASSOLUTO
+            torch.save(model.state_dict(), MODEL_SAVE_PATH)
+            print(f"⭐ Nuovo record di Val Loss ({best_val_loss:.4f})! Modello salvato.")
+        else:
+            epochs_no_improve += 1
+            print(f"⚠️ La Val Loss non è migliorata da {epochs_no_improve} epoche.")
+
+        # 3. Freno a mano: Se non migliora da 10 epoche, stacca tutto!
+        if epochs_no_improve >= patience_early_stopping:
+            print(f"\n🛑 EARLY STOPPING INNESCATO ALL'EPOCA {epoch+1}!")
+            print(f"Il modello ha smesso di migliorare per {patience_early_stopping} epoche di fila. Interrompo per evitare Overfitting.")
+            break # Uccide il ciclo For e finisce il training
+
+    print(f"\n🎉 Addestramento Completato! Miglior Val Loss: {best_val_loss:.4f}")
 
 if __name__ == "__main__":
     train_model()

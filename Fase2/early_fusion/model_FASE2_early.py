@@ -48,7 +48,7 @@ class MultimodalEarlyFusionCNN(nn.Module):
         self.classifier = nn.Sequential(
             nn.Linear(self.flatten_size, 64),
             nn.ReLU(),
-            nn.Dropout(0.3), # Dropout ridotto per non frenare troppo l'apprendimento
+            nn.Dropout(0.5), # Dropout ridotto per non frenare troppo l'apprendimento
             nn.Linear(64, 1) # Output binario
         )
 

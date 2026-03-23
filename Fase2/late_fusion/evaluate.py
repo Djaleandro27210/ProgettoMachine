@@ -3,6 +3,7 @@
 Modulo: evaluate_late.py
 Descrizione: Il "Tribunale" della Late Fusion. Carica i 3 modelli addestrati,
 effettua il Voto a Maggioranza (Majority Voting) e calcola le metriche finali.
+Stampa tutto a terminale e SOLO ALLA FINE salva i risultati in output_fase2_late.txt.
 =====================================================================================
 """
 import torch
@@ -100,14 +101,19 @@ Falso Negativo (FN): {cm[1][0]:<5} | Vero Positivo (TP):  {cm[1][1]}
 """
     print("\n" + report_text)
 
+    # 7. SALVATAGGIO SU FILE IN MODO SICURO
     try:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         output_path = os.path.join(current_dir, 'output_fase2_late.txt')
+        
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(report_text)
-        print(f"✅ Report salvato in: {output_path}")
+            
+        print(f"✅ Report salvato con successo nel file: {output_path}")
+        
     except Exception as e:
-        print(f"\n⚠️ Impossibile salvare il file txt ({e}).")
+        print(f"\n⚠️ ATTENZIONE: Impossibile salvare il file di testo ({e}).")
+        print("Tranquillo, i risultati sono comunque stampati qui sopra! Nessun dato perso.")
 
 if __name__ == "__main__":
     valuta_late_fusion()

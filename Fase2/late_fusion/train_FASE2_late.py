@@ -2,19 +2,24 @@
 =====================================================================================
 Modulo: train_fase2_late.py
 Progetto: ML Emozioni - Fase 2 (Addestramento Late Fusion)
+
+Descrizione:
+Addestra 3 reti 1D-CNN (Affect, ECG, EDA) in parallelo.
+Salva ogni modello in modo indipendente basandosi sul proprio MACRO F1-SCORE.
 =====================================================================================
 """
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from sklearn.metrics import f1_score # Import per la metrica God Tier
 
 from config_FASE2_late import (BATCH_SIZE, LEARNING_RATE, EPOCHS, 
                                MODEL_SAVE_PATH_LATE_AFFECT, 
                                MODEL_SAVE_PATH_LATE_ECG, 
                                MODEL_SAVE_PATH_LATE_EDA)
 from dataset_FASE2_late import PopaneDatasetLateFusion
-from model_FASE2_late import UnimodalCNN # Assicurati che il nome file sia corretto!
+from model_FASE2_late import UnimodalCNN 
 
 def train_late_fusion():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -41,7 +46,7 @@ def train_late_fusion():
     pos_weight = torch.tensor([weight_value]).to(device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     
-    # 2. TRE OTTIMIZZATORI CON WEIGHT DECAY (1e-3 per stroncare l'overfitting)
+    # 2. TRE OTTIMIZZATORI CON WEIGHT DECAY
     opt_affect = optim.Adam(model_affect.parameters(), lr=LEARNING_RATE, weight_decay=1e-3)
     opt_ecg = optim.Adam(model_ecg.parameters(), lr=LEARNING_RATE, weight_decay=1e-3)
     opt_eda = optim.Adam(model_eda.parameters(), lr=LEARNING_RATE, weight_decay=1e-3)
@@ -51,7 +56,11 @@ def train_late_fusion():
     sch_ecg = optim.lr_scheduler.ReduceLROnPlateau(opt_ecg, mode='min', factor=0.5, patience=4)
     sch_eda = optim.lr_scheduler.ReduceLROnPlateau(opt_eda, mode='min', factor=0.5, patience=4)
 
-    best_loss_aff, best_loss_ecg, best_loss_eda = float('inf'), float('inf'), float('inf')
+    # VARIABILI PER L'EARLY STOPPING E I RECORD DI F1-SCORE
+    best_f1_aff, best_f1_ecg, best_f1_eda = 0.0, 0.0, 0.0
+    
+    # Non mettiamo un vero e proprio Early Stopping "brutale" che blocca il loop for (il 'break'),
+    # perché se l'ECG finisce di imparare ma l'Affect sta ancora salendo, dobbiamo lasciarlo finire!
 
     print(f"\nInizia il training per {EPOCHS} Epoche...\n")
     
@@ -89,6 +98,10 @@ def train_late_fusion():
         # --- FASE DI VALIDATION ---
         model_affect.eval(); model_ecg.eval(); model_eda.eval()
         v_loss_aff, v_loss_ecg, v_loss_eda, total_val = 0.0, 0.0, 0.0, 0
+        
+        # Liste separate per le predizioni dei 3 giudici
+        preds_aff, preds_ecg, preds_eda = [], [], []
+        true_labels = []
 
         with torch.no_grad():
             for t_aff, t_ecg, t_eda, labels in val_loader:
@@ -103,32 +116,51 @@ def train_late_fusion():
                 v_loss_ecg += criterion(out_ecg, labels).item() * labels.size(0)
                 v_loss_eda += criterion(out_eda, labels).item() * labels.size(0)
                 total_val += labels.size(0)
+                
+                # Salvataggio predizioni (0 o 1) per calcolare l'F1
+                preds_aff.extend((torch.sigmoid(out_aff) > 0.5).float().cpu().numpy())
+                preds_ecg.extend((torch.sigmoid(out_ecg) > 0.5).float().cpu().numpy())
+                preds_eda.extend((torch.sigmoid(out_eda) > 0.5).float().cpu().numpy())
+                true_labels.extend(labels.cpu().numpy())
 
-        v_loss_aff /= total_val
-        v_loss_ecg /= total_val
-        v_loss_eda /= total_val
+        # Calcolo Medie
+        if total_val > 0:
+            v_loss_aff /= total_val
+            v_loss_ecg /= total_val
+            v_loss_eda /= total_val
+            
+            # Calcolo dei 3 F1-Score Indipendenti
+            f1_aff = f1_score(true_labels, preds_aff, average='macro')
+            f1_ecg = f1_score(true_labels, preds_ecg, average='macro')
+            f1_eda = f1_score(true_labels, preds_eda, average='macro')
+        else:
+            v_loss_aff, v_loss_ecg, v_loss_eda = float('inf'), float('inf'), float('inf')
+            f1_aff, f1_ecg, f1_eda = 0.0, 0.0, 0.0
 
-        print(f"Epoca [{epoch+1}/{EPOCHS}] | VAL LOSS -> Affect: {v_loss_aff:.4f} | ECG: {v_loss_ecg:.4f} | EDA: {v_loss_eda:.4f}")
+        print(f"Epoca [{epoch+1}/{EPOCHS}] | VAL F1-MACRO -> Affect: {f1_aff:.4f} | ECG: {f1_ecg:.4f} | EDA: {f1_eda:.4f}")
 
-        # SCHEDULER STEP
+        # SCHEDULER STEP (Lo lasciamo sulla loss, perché la loss è più continua matematicamente)
         sch_affect.step(v_loss_aff)
         sch_ecg.step(v_loss_ecg)
         sch_eda.step(v_loss_eda)
 
-        # SALVATAGGIO INDIPENDENTE SULLA LOSS
-        if v_loss_aff < best_loss_aff:
-            best_loss_aff = v_loss_aff
+        # =========================================================
+        # SALVATAGGIO INDIPENDENTE SULL' F1-SCORE (La chicca finale)
+        # =========================================================
+        if f1_aff > best_f1_aff:
+            best_f1_aff = f1_aff
             torch.save(model_affect.state_dict(), MODEL_SAVE_PATH_LATE_AFFECT)
             
-        if v_loss_ecg < best_loss_ecg:
-            best_loss_ecg = v_loss_ecg
+        if f1_ecg > best_f1_ecg:
+            best_f1_ecg = f1_ecg
             torch.save(model_ecg.state_dict(), MODEL_SAVE_PATH_LATE_ECG)
             
-        if v_loss_eda < best_loss_eda:
-            best_loss_eda = v_loss_eda
+        if f1_eda > best_f1_eda:
+            best_f1_eda = f1_eda
             torch.save(model_eda.state_dict(), MODEL_SAVE_PATH_LATE_EDA)
 
-    print("\n🎉 Training Completato! I 3 modelli migliori sono stati salvati!")
+    print("\n🎉 Training Completato! I 3 giudici (Modelli) migliori sono stati salvati su disco!")
+    print(f"Record Finali F1-Macro -> Affect: {best_f1_aff:.4f} | ECG: {best_f1_ecg:.4f} | EDA: {best_f1_eda:.4f}")
 
 if __name__ == "__main__":
     train_late_fusion()

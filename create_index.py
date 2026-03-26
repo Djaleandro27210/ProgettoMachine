@@ -86,6 +86,13 @@ def create_dataset_index():
         data_start_index = 9 
         
         for w in range(num_windows):
+            # --- MAGIA DELL'UNDERSAMPLING SULLE FINESTRE ---
+            # Se l'emozione è POSITIVA (1), teniamo solo 1 finestra su 3 (w % 3 == 0)
+            # Questo dimezza drasticamente i positivi, bilanciando il dataset!
+            if label == 1 and w % 3 != 0:
+                continue # Salta questa fetta e passa alla prossima
+            # -----------------------------------------------
+
             # Calcoliamo la riga esatta di partenza e di fine per questa specifica fettina
             start_row = data_start_index + (w * WINDOW_SIZE)
             end_row = start_row + WINDOW_SIZE

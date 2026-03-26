@@ -49,11 +49,25 @@ def perform_subject_split():
     # 7. Salva il nuovo file usando la costante dal config
     df.to_csv(SPLIT_INDEX_PATH, index=False)
     
-    print(f"\nFinito! Il nuovo indice con lo split è stato salvato in: {SPLIT_INDEX_PATH}")
+    print(f"\n✅ Finito! Il nuovo indice con lo split è stato salvato in: {SPLIT_INDEX_PATH}")
     
-    # Stampa quante "fettine" effettive sono finite in ogni set
-    print("\nRiepilogo finale delle FETTINE per ogni set:")
-    print(df['split'].value_counts())
+    # =====================================================================
+    # NUOVO: REPORT STATISTICO PER VEDERE LA MAGIA DELL'UNDERSAMPLING
+    # =====================================================================
+    print("\n📊 RIEPILOGO FINALE BILANCIAMENTO (Dimostrazione Undersampling):")
+    for split_name in ['train', 'val', 'test']:
+        subset = df[df['split'] == split_name]
+        neg = len(subset[subset['label'] == 0])
+        pos = len(subset[subset['label'] == 1])
+        total = len(subset)
+        
+        # Calcola la percentuale per farti vedere quanto è bilanciato
+        perc_neg = (neg / total) * 100 if total > 0 else 0
+        perc_pos = (pos / total) * 100 if total > 0 else 0
+        
+        print(f"[{split_name.upper()}] Totale Fettine: {total}")
+        print(f"   -> Negativi (0): {neg} ({perc_neg:.1f}%)")
+        print(f"   -> Positivi (1): {pos} ({perc_pos:.1f}%)\n")
 
 if __name__ == "__main__":
     perform_subject_split()

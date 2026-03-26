@@ -6,6 +6,7 @@ Progetto: ML Emozioni - Fase 2 (Addestramento Early Fusion)
 Descrizione:
 Script di addestramento per l'architettura Early Fusion a 3 canali.
 Integrato con Early Stopping e Learning Rate Scheduler.
+Salva il modello migliore su disco BASANDOSI SUL MACRO F1-SCORE.
 =====================================================================================
 """
 
@@ -13,6 +14,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from sklearn.metrics import f1_score # <-- IMPORT FONDAMENTALE PER L'F1
 
 # ⚠️ ATTENZIONE: Importiamo dai file della FASE 2!
 from config_FASE2_early import BATCH_SIZE, LEARNING_RATE, EPOCHS, MODEL_SAVE_PATH_FASE2
@@ -54,13 +56,15 @@ def train_early_fusion():
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
     
     # =========================================================
-    # NUOVO: INIZIALIZZAZIONE SCHEDULER E EARLY STOPPING
+    # INIZIALIZZAZIONE SCHEDULER E EARLY STOPPING (F1-SCORE)
     # =========================================================
+    # Lo scheduler guarda ancora la Val Loss per capire se c'è stallo matematico
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=4)
     
+    # L'Early Stopping e il Salvataggio ora guardano il Macro F1-Score
     patience_early_stopping = 10
     epochs_no_improve = 0
-    best_val_loss = float('inf') # Ora salviamo basandoci sulla Loss
+    best_val_f1 = 0.0 # Partiamo da un F1 di zero
     # =========================================================
 
     print(f"\nInizia il training per {EPOCHS} Epoche...\n")
@@ -98,6 +102,10 @@ def train_early_fusion():
         running_val_loss = 0.0
         correct_val = 0
         total_val = 0
+        
+        # Liste per memorizzare predizioni e label per l'F1-Score
+        all_val_preds = []
+        all_val_labels = []
 
         with torch.no_grad():
             for batch_idx_val, (inputs, labels) in enumerate(val_loader):
@@ -111,42 +119,57 @@ def train_early_fusion():
                 predictions = (torch.sigmoid(outputs) > 0.5).float()
                 correct_val += (predictions == labels).sum().item()
                 total_val += labels.size(0)
+                
+                # Aggiungiamo i dati alle liste per calcolare l'F1
+                all_val_preds.extend(predictions.cpu().numpy())
+                all_val_labels.extend(labels.cpu().numpy())
 
+        # Calcolo medie di fine epoca per il Validation
         if total_val > 0:
             epoch_val_loss = running_val_loss / total_val
             epoch_val_acc = (correct_val / total_val) * 100
+            
+            # CALCOLO DEL MACRO F1-SCORE
+            epoch_val_f1 = f1_score(all_val_labels, all_val_preds, average='macro')
         else:
             epoch_val_loss = float('inf')
             epoch_val_acc = 0.0
+            epoch_val_f1 = 0.0
             print("⚠️ Attenzione: Il Validation Set sembra vuoto!")
 
+        # Stampa dei risultati completi
         print(f"Epoca [{epoch+1}/{EPOCHS}] | "
-              f"Train Loss: {epoch_train_loss:.4f} - Train Acc: {epoch_train_acc:.2f}% | "
-              f"Val Loss: {epoch_val_loss:.4f} - Val Acc: {epoch_val_acc:.2f}%")
+              f"Train Loss: {epoch_train_loss:.4f} | "
+              f"Val Loss: {epoch_val_loss:.4f} - Val Acc: {epoch_val_acc:.2f}% - Val F1-Macro: {epoch_val_f1:.4f}")
 
         # =========================================================
-        # NUOVO: LOGICA DI SCHEDULING, EARLY STOPPING E SALVATAGGIO
+        # LOGICA DI SCHEDULING E SALVATAGGIO
         # =========================================================
+        # 1. Il Cecchino: Aggiorna il Learning Rate guardando la Loss
         scheduler.step(epoch_val_loss)
         
         current_lr = optimizer.param_groups[0]['lr']
         if current_lr < LEARNING_RATE and epochs_no_improve == 0: 
              print(f"📉 [SCHEDULER] Il learning rate è stato abbassato a: {current_lr}")
 
-        if epoch_val_loss < best_val_loss:
-            best_val_loss = epoch_val_loss
+        # 2. Controllo Early Stopping: L'F1-Macro è salito?
+        if epoch_val_f1 > best_val_f1:
+            best_val_f1 = epoch_val_f1
             epochs_no_improve = 0 
+            # SALVA IL MODELLO SOLO QUANDO L'F1-SCORE È AL MASSIMO
             torch.save(model.state_dict(), MODEL_SAVE_PATH_FASE2)
-            print(f"⭐ Nuovo record di Val Loss ({best_val_loss:.4f})! Modello salvato.")
+            print(f"⭐ Nuovo record di F1-Macro ({best_val_f1:.4f})! Modello salvato.")
         else:
             epochs_no_improve += 1
-            print(f"⚠️ La Val Loss non è migliorata da {epochs_no_improve} epoche.")
+            print(f"⚠️ L'F1-Macro non è migliorato da {epochs_no_improve} epoche.")
 
+        # 3. Freno a mano basato sull'F1
         if epochs_no_improve >= patience_early_stopping:
             print(f"\n🛑 EARLY STOPPING INNESCATO ALL'EPOCA {epoch+1}!")
+            print(f"Il modello ha smesso di bilanciare le prestazioni per {patience_early_stopping} epoche. Interrompo.")
             break 
 
-    print(f"\n🎉 Addestramento Completato! Miglior Val Loss: {best_val_loss:.4f}")
+    print(f"\n🎉 Addestramento Completato! Miglior Val F1-Macro: {best_val_f1:.4f}")
 
 if __name__ == "__main__":
     train_early_fusion()

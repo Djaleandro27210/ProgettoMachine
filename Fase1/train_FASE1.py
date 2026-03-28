@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import f1_score # <-- IMPORT FONDAMENTALE PER L'F1
 
 # Importiamo le nostre "creature" e i parametri dal config
-from config_FASE1 import BATCH_SIZE, LEARNING_RATE, EPOCHS, MODEL_SAVE_PATH, WEIGHT_DEECAY
+from config import BATCH_SIZE, LEARNING_RATE, EPOCHS, MODEL_SAVE_PATH, WEIGHT_DEECAY
 from dataset_FASE1 import PopaneDataset
 from model_FASE1 import Emotion1DCNN
 

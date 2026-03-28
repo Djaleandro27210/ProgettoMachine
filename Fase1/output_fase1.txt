@@ -1,0 +1,25 @@
+==================================================
+📊 RISULTATI FINALI DEL MODELLO
+==================================================
+✅ Accuracy:  0.6273 (62.7%)
+✅ F1-Score:  0.6272 (Macro Average)
+✅ AUC-ROC:   0.6769
+
+--------------------------------------------------
+📋 CLASSIFICATION REPORT DETTAGLIATO
+--------------------------------------------------
+                       precision    recall  f1-score   support
+
+Emozione Negativa (0)       0.61      0.63      0.62      4500
+Emozione Positiva (1)       0.64      0.62      0.63      4800
+
+             accuracy                           0.63      9300
+            macro avg       0.63      0.63      0.63      9300
+         weighted avg       0.63      0.63      0.63      9300
+
+--------------------------------------------------
+🧩 MATRICE DI CONFUSIONE
+--------------------------------------------------
+Vero Negativo (TN): 2857  | Falso Positivo (FP): 1643
+Falso Negativo (FN): 1823  | Vero Positivo (TP):  2977
+==================================================

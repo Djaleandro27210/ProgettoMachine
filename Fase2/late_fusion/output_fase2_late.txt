@@ -1,0 +1,25 @@
+==================================================
+📊 RISULTATI LATE FUSION (VOTO A MAGGIORANZA)
+==================================================
+✅ Accuracy:  0.6326 (63.3%)
+✅ F1-Score:  0.6323 (Macro Average)
+*(Nota: L'AUC-ROC non si calcola nella Late Fusion a maggioranza, perché otteniamo voti netti, non probabilità!)*
+
+--------------------------------------------------
+📋 CLASSIFICATION REPORT
+--------------------------------------------------
+              precision    recall  f1-score   support
+
+Negativa (0)       0.61      0.68      0.64      4500
+Positiva (1)       0.66      0.59      0.62      4800
+
+    accuracy                           0.63      9300
+   macro avg       0.64      0.63      0.63      9300
+weighted avg       0.64      0.63      0.63      9300
+
+--------------------------------------------------
+🧩 MATRICE DI CONFUSIONE
+--------------------------------------------------
+Vero Negativo (TN): 3071  | Falso Positivo (FP): 1429
+Falso Negativo (FN): 1988  | Vero Positivo (TP):  2812
+==================================================

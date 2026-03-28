@@ -1,6 +1,6 @@
 """
 =====================================================================================
-Modulo: evaluate_late.py
+Modulo: evaluate.py
 Descrizione: Il "Tribunale" della Late Fusion. Carica i 3 modelli addestrati,
 effettua il Voto a Maggioranza (Majority Voting) e calcola le metriche finali.
 Stampa tutto a terminale e SOLO ALLA FINE salva i risultati in output_fase2_late.txt.

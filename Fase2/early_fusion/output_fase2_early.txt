@@ -1,0 +1,25 @@
+==================================================
+📊 RISULTATI FINALI DEL MODELLO EARLY FUSION
+==================================================
+✅ Accuracy:  0.6635 (66.4%)
+✅ F1-Score:  0.6630 (Macro Average)
+✅ AUC-ROC:   0.7291
+
+--------------------------------------------------
+📋 CLASSIFICATION REPORT DETTAGLIATO
+--------------------------------------------------
+                       precision    recall  f1-score   support
+
+Emozione Negativa (0)       0.63      0.73      0.68      4500
+Emozione Positiva (1)       0.70      0.60      0.65      4800
+
+             accuracy                           0.66      9300
+            macro avg       0.67      0.67      0.66      9300
+         weighted avg       0.67      0.66      0.66      9300
+
+--------------------------------------------------
+🧩 MATRICE DI CONFUSIONE
+--------------------------------------------------
+Vero Negativo (TN): 3270  | Falso Positivo (FP): 1230
+Falso Negativo (FN): 1899  | Vero Positivo (TP):  2901
+==================================================

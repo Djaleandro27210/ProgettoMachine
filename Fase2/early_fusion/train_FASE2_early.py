@@ -21,155 +21,192 @@ from config_FASE2_early import BATCH_SIZE, LEARNING_RATE, EPOCHS, MODEL_SAVE_PAT
 from dataset_FASE2_early import PopaneDatasetMultimodal
 from model_FASE2_early import MultimodalEarlyFusionCNN
 
-def train_early_fusion():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"🚀 Inizio addestramento EARLY FUSION! Dispositivo: {device}")
 
-    # 1. Caricamento Dataset Multimodale (3 canali)
-    print("Caricamento dataset multimodale in corso...")
+def get_device() -> torch.device:
+    """Restituisce il dispositivo disponibile per l'addestramento."""
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def create_data_loaders(batch_size: int = BATCH_SIZE):
+    """Costruisce i DataLoader per training e validation."""
     train_dataset = PopaneDatasetMultimodal(split_type="train")
     val_dataset = PopaneDatasetMultimodal(split_type="val")
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=False)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, drop_last=False)
 
-    # 2. Inizializzazione Rete Multimodale
-    model = MultimodalEarlyFusionCNN().to(device)
-    
-    # --- Calcolo DINAMICO dei pesi ---
-    print("⚖️ Calcolo dei pesi per bilanciare le classi in Early Fusion...")
-    num_positives = 0
-    num_negatives = 0
-    
-    for inputs, labels in train_loader:
-        num_positives += labels.sum().item()
-        num_negatives += (labels == 0).sum().item()
+    return train_loader, val_loader
 
-    weight_value = num_negatives / num_positives if num_positives > 0 else 1.0
-    pos_weight = torch.tensor([weight_value]).to(device)
-    
-    print(f"📊 Esempi Negativi (0): {int(num_negatives)} | Esempi Positivi (1): {int(num_positives)}")
-    print(f"⚖️ Moltiplicatore pos_weight calcolato: {weight_value:.4f}")
 
-    # Loss e Ottimizzatore
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
-    
-    # =========================================================
-    # INIZIALIZZAZIONE SCHEDULER E EARLY STOPPING (F1-SCORE)
-    # =========================================================
-    # Lo scheduler guarda ancora la Val Loss per capire se c'è stallo matematico
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=4)
-    
-    # L'Early Stopping e il Salvataggio ora guardano il Macro F1-Score
-    patience_early_stopping = 10
-    epochs_no_improve = 0
-    best_val_f1 = 0.0 # Partiamo da un F1 di zero
-    # =========================================================
+def build_model(device: torch.device):
+    """Crea il modello di rete e lo invia al dispositivo."""
+    model = MultimodalEarlyFusionCNN()
+    return model.to(device)
 
-    print(f"\nInizia il training per {EPOCHS} Epoche...\n")
-    
-    for epoch in range(EPOCHS):
-        # --- FASE DI TRAINING ---
-        model.train()
-        running_train_loss = 0.0
-        correct_train = 0
-        total_train = 0
 
-        for batch_idx, (inputs, labels) in enumerate(train_loader):
-            inputs, labels = inputs.to(device), labels.to(device)
-            labels = labels.unsqueeze(1)
+def build_optimizer(model: torch.nn.Module):
+    """Crea l'ottimizzatore."""
+    return optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
 
-            optimizer.zero_grad()
+
+def build_scheduler(optimizer):
+    """Crea lo scheduler di LR."""
+    return optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=4)
+
+
+def compute_pos_weight(train_loader: DataLoader, device: torch.device) -> torch.Tensor:
+    """Calcola il peso per la classe positiva per BCEWithLogitsLoss."""
+    positives = 0
+    negatives = 0
+
+    for _, labels in train_loader:
+        positives += int(labels.sum().item())
+        negatives += int((labels == 0).sum().item())
+
+    if positives <= 0:
+        return torch.tensor([1.0], dtype=torch.float32, device=device)
+
+    weight_value = negatives / positives
+    return torch.tensor([weight_value], dtype=torch.float32, device=device)
+
+
+def batch_metrics(outputs: torch.Tensor, labels: torch.Tensor):
+    """Predizioni binarie e metriche basiche di batch."""
+    probs = torch.sigmoid(outputs)
+    preds = (probs > 0.5).float()
+    loss_labels = labels.view_as(preds)
+    correct = (preds == loss_labels).sum().item()
+    total = loss_labels.numel()
+
+    return preds, loss_labels, correct, total
+
+
+def train_one_epoch(model: torch.nn.Module, loader: DataLoader, criterion, optimizer, device: torch.device):
+    model.train()
+    total_loss, correct, total = 0.0, 0, 0
+
+    for batch_idx, (inputs, labels) in enumerate(loader, start=1):
+        inputs = inputs.to(device)
+        labels = labels.to(device).unsqueeze(1).float()
+
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        preds, true_labels, batch_correct, batch_total = batch_metrics(outputs, labels)
+
+        total_loss += float(loss.item()) * batch_total
+        correct += batch_correct
+        total += batch_total
+
+        if batch_idx % 500 == 0:
+            print(f"   -> Elaborato batch {batch_idx}/{len(loader)}")
+
+    return total_loss / max(total, 1), 100.0 * correct / max(total, 1)
+
+
+def evaluate(model: torch.nn.Module, loader: DataLoader, criterion, device: torch.device):
+    model.eval()
+    total_loss, correct, total = 0.0, 0, 0
+    all_preds, all_labels = [], []
+
+    with torch.no_grad():
+        for inputs, labels in loader:
+            inputs = inputs.to(device)
+            labels = labels.to(device).unsqueeze(1).float()
+
             outputs = model(inputs)
             loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
 
-            running_train_loss += loss.item() * inputs.size(0)
-            predictions = (torch.sigmoid(outputs) > 0.5).float()
-            correct_train += (predictions == labels).sum().item()
-            total_train += labels.size(0)
+            preds, true_labels, batch_correct, batch_total = batch_metrics(outputs, labels)
 
-            if (batch_idx + 1) % 500 == 0:
-                print(f"   -> Elaborato batch {batch_idx + 1}/{len(train_loader)}")
+            total_loss += float(loss.item()) * batch_total
+            correct += batch_correct
+            total += batch_total
 
-        epoch_train_loss = running_train_loss / total_train
-        epoch_train_acc = (correct_train / total_train) * 100
+            all_preds.extend(preds.cpu().numpy().ravel().tolist())
+            all_labels.extend(true_labels.cpu().numpy().ravel().tolist())
 
-        # --- FASE DI VALIDATION ---
-        model.eval()
-        running_val_loss = 0.0
-        correct_val = 0
-        total_val = 0
-        
-        # Liste per memorizzare predizioni e label per l'F1-Score
-        all_val_preds = []
-        all_val_labels = []
+    if total == 0:
+        return float('inf'), 0.0, 0.0
 
-        with torch.no_grad():
-            for batch_idx_val, (inputs, labels) in enumerate(val_loader):
-                inputs, labels = inputs.to(device), labels.to(device)
-                labels = labels.unsqueeze(1)
+    val_loss = total_loss / total
+    val_acc = 100.0 * correct / total
+    val_f1 = f1_score(all_labels, all_preds, average='macro', zero_division=0)
 
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
+    return val_loss, val_acc, val_f1
 
-                running_val_loss += loss.item() * inputs.size(0)
-                predictions = (torch.sigmoid(outputs) > 0.5).float()
-                correct_val += (predictions == labels).sum().item()
-                total_val += labels.size(0)
-                
-                # Aggiungiamo i dati alle liste per calcolare l'F1
-                all_val_preds.extend(predictions.cpu().numpy())
-                all_val_labels.extend(labels.cpu().numpy())
+    with torch.no_grad():
+        for inputs, labels in loader:
+            inputs = inputs.to(device)
+            labels = labels.to(device).unsqueeze(1).float()
 
-        # Calcolo medie di fine epoca per il Validation
-        if total_val > 0:
-            epoch_val_loss = running_val_loss / total_val
-            epoch_val_acc = (correct_val / total_val) * 100
-            
-            # CALCOLO DEL MACRO F1-SCORE
-            epoch_val_f1 = f1_score(all_val_labels, all_val_preds, average='macro')
-        else:
-            epoch_val_loss = float('inf')
-            epoch_val_acc = 0.0
-            epoch_val_f1 = 0.0
-            print("⚠️ Attenzione: Il Validation Set sembra vuoto!")
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
 
-        # Stampa dei risultati completi
-        print(f"Epoca [{epoch+1}/{EPOCHS}] | "
-              f"Train Loss: {epoch_train_loss:.4f} | "
-              f"Val Loss: {epoch_val_loss:.4f} - Val Acc: {epoch_val_acc:.2f}% - Val F1-Macro: {epoch_val_f1:.4f}")
+            preds, true_labels, batch_correct, batch_total = batch_metrics(outputs, labels)
 
-        # =========================================================
-        # LOGICA DI SCHEDULING E SALVATAGGIO
-        # =========================================================
-        # 1. Il Cecchino: Aggiorna il Learning Rate guardando la Loss
-        scheduler.step(epoch_val_loss)
-        
-        current_lr = optimizer.param_groups[0]['lr']
-        if current_lr < LEARNING_RATE and epochs_no_improve == 0: 
-             print(f"📉 [SCHEDULER] Il learning rate è stato abbassato a: {current_lr}")
+            total_loss += float(loss.item()) * batch_total
+            correct += batch_correct
+            total += batch_total
 
-        # 2. Controllo Early Stopping: L'F1-Macro è salito?
-        if epoch_val_f1 > best_val_f1:
-            best_val_f1 = epoch_val_f1
-            epochs_no_improve = 0 
-            # SALVA IL MODELLO SOLO QUANDO L'F1-SCORE È AL MASSIMO
+            all_preds.extend(preds.cpu().numpy().ravel().tolist())
+            all_labels.extend(true_labels.cpu().numpy().ravel().tolist())
+
+    if total == 0:
+        return float('inf'), 0.0, 0.0
+
+    val_loss = total_loss / total
+    val_acc = 100.0 * correct / total
+    val_f1 = f1_score(all_labels, all_preds, average='macro', zero_division=0)
+
+    return val_loss, val_acc, val_f1
+
+
+def train_early_fusion():
+    device = get_device()
+    print(f"Inizio addestramento EARLY FUSION. Dispositivo: {device}")
+
+    train_loader, val_loader = create_data_loaders()
+    model = build_model(device)
+    optimizer = build_optimizer(model)
+    scheduler = build_scheduler(optimizer)
+
+    pos_weight = compute_pos_weight(train_loader, device)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+
+    print(f"pos_weight calcolato: {pos_weight.item():.4f}")
+
+    patience_early_stopping = 10
+    epochs_no_improve = 0
+    best_val_f1 = 0.0
+
+    for epoch in range(1, EPOCHS + 1):
+        train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device)
+        val_loss, val_acc, val_f1 = evaluate(model, val_loader, criterion, device)
+
+        print(f"Epoca [{epoch}/{EPOCHS}] - Train Loss: {train_loss:.4f} - "
+              f"Val Loss: {val_loss:.4f} - Val Acc: {val_acc:.2f}% - Val F1-Macro: {val_f1:.4f}")
+
+        scheduler.step(val_loss)
+
+        if val_f1 > best_val_f1:
+            best_val_f1 = val_f1
+            epochs_no_improve = 0
             torch.save(model.state_dict(), MODEL_SAVE_PATH_FASE2)
-            print(f"⭐ Nuovo record di F1-Macro ({best_val_f1:.4f})! Modello salvato.")
+            print(f"Nuovo record F1-Macro {best_val_f1:.4f}, modello salvato in {MODEL_SAVE_PATH_FASE2}.")
         else:
             epochs_no_improve += 1
-            print(f"⚠️ L'F1-Macro non è migliorato da {epochs_no_improve} epoche.")
+            print(f"Nessun miglioramento F1 da {epochs_no_improve}/{patience_early_stopping} epoche.")
 
-        # 3. Freno a mano basato sull'F1
         if epochs_no_improve >= patience_early_stopping:
-            print(f"\n🛑 EARLY STOPPING INNESCATO ALL'EPOCA {epoch+1}!")
-            print(f"Il modello ha smesso di bilanciare le prestazioni per {patience_early_stopping} epoche. Interrompo.")
-            break 
+            print(f"Early stopping innescato all'epoca {epoch}.")
+            break
 
-    print(f"\n🎉 Addestramento Completato! Miglior Val F1-Macro: {best_val_f1:.4f}")
+    print(f"Addestramento completato. Best Val F1-Macro: {best_val_f1:.4f}")
+
 
 if __name__ == "__main__":
     train_early_fusion()

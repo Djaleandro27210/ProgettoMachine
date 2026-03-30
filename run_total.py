@@ -1,52 +1,152 @@
 """
-=====================================================================================
-Orchestratore SUPREMO - Esecuzione Sequenziale Sicura
-Lancialo, esci di casa per 2 giorni, e torna a goderti i risultati.
-=====================================================================================
+Pipeline Orchestrator - Sequential Safe Execution
+Launch and monitor all training, evaluation, and analysis phases.
 """
+import argparse
+import logging
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
+from typing import List, Optional
 
-def run_script(script_path):
-    print(f"\n{'='*60}")
-    print(f"🚀 AVVIO FASE: {script_path}")
-    print(f"{'='*60}\n")
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
+
+SEPARATOR = "=" * 70
+COOLDOWN_SECONDS = 10
+
+
+@dataclass(frozen=True)
+class PipelineStage:
+    name: str
+    scripts: List[str]
+
+
+def print_header(message: str) -> None:
+    print(f"\n{SEPARATOR}")
+    print(f"{message}")
+    print(f"{SEPARATOR}\n")
+
+
+def run_script(script_path: str, verbose: bool = True) -> bool:
+    if verbose:
+        print(f"[EXEC] Avvio: {script_path}")
     
-    # Esegue lo script
     result = subprocess.run([sys.executable, script_path])
     
-    # Se crasha, ferma tutto e avvisa
     if result.returncode != 0:
-        print(f"\n❌ ERRORE CRITICO in '{script_path}'. Processo interrotto.")
-        sys.exit(1)
+        print(f"[ERROR] Script fallito: {script_path}")
+        return False
     
-    print(f"\n✅ COMPLETATO: {script_path}")
-    print("⏳ Pausa di 10 secondi per far raffreddare CPU e svuotare la RAM...\n")
-    time.sleep(10) # 10 secondi di respiro per il PC
+    print(f"[OK] Completato: {script_path}")
+    if verbose:
+        print(f"[INFO] Pausa {COOLDOWN_SECONDS}s per raffreddare sistema...\n")
+        time.sleep(COOLDOWN_SECONDS)
+    
+    return True
 
-if __name__ == "__main__":
-    print("🔥 INIZIO PIPELINE COMPLETA - MACCHINA AL LAVORO 🔥")
+
+def run_stage(stage: PipelineStage, stop_on_error: bool = True) -> bool:
+    print_header(f"FASE: {stage.name}")
+    
+    for script_path in stage.scripts:
+        success = run_script(script_path)
+        if not success and stop_on_error:
+            print(f"[FATAL] Pipeline interrotta a causa di errore in {script_path}")
+            return False
+    
+    return True
+
+
+def execute_pipeline(stages: List[PipelineStage], stop_on_error: bool = True) -> bool:
+    print_header("INIZIO PIPELINE COMPLETA")
     print("Mettiti comodo, ci vediamo tra un paio di giorni...\n")
     
-    # --- FASE 1 (Solo ECG) ---
-    print(">>> PARTENZA FASE 1: UNIMODALE <<<")
-    run_script("src/Fase1/train_FASE1.py")
-    run_script("src/Fase1/evaluate.py")
+    for stage in stages:
+        success = run_stage(stage, stop_on_error=stop_on_error)
+        if not success:
+            return False
     
-    # --- FASE 2 EARLY FUSION (Il pastone) ---
-    print("\n>>> PARTENZA FASE 2: EARLY FUSION <<<")
-    run_script("src/Fase2/early_fusion/train_FASE2_early.py")
-    run_script("src/Fase2/early_fusion/evaluate.py")
+    return True
+
+
+def get_default_pipeline() -> List[PipelineStage]:
+    return [
+        PipelineStage(
+            name="FASE 1 - Unimodale",
+            scripts=[
+                "src/Fase1/train_FASE1.py",
+                "src/Fase1/evaluate.py",
+            ],
+        ),
+        PipelineStage(
+            name="FASE 2 - Early Fusion",
+            scripts=[
+                "src/Fase2/early_fusion/train_FASE2_early.py",
+                "src/Fase2/early_fusion/evaluate.py",
+            ],
+        ),
+        PipelineStage(
+            name="FASE 2 - Late Fusion",
+            scripts=[
+                "src/Fase2/late_fusion/train_FASE2_late.py",
+                "src/Fase2/late_fusion/evaluate_late.py",
+            ],
+        ),
+        PipelineStage(
+            name="FASE 3 - Analisi SHAP",
+            scripts=[
+                "src/Fase3/shap_fase1.py",
+                "src/Fase3/shap_fase2_early.py",
+                "src/Fase3/shap_fase2_late.py",
+            ],
+        ),
+    ]
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Orchestratore di pipeline - esecuzione sequenziale con monitoring"
+    )
+    parser.add_argument(
+        "--stage",
+        type=str,
+        choices=["fase1", "fase2-early", "fase2-late", "fase3", "all"],
+        default="all",
+        help="Quale fase eseguire (default: all)",
+    )
+    parser.add_argument(
+        "--continue-on-error",
+        action="store_true",
+        help="Continua anche se uno script fallisce",
+    )
+    args = parser.parse_args()
+
+    all_stages = get_default_pipeline()
     
-    # --- FASE 2 LATE FUSION (I 3 Giudici) ---
-    print("\n>>> PARTENZA FASE 2: LATE FUSION <<<")
-    run_script("src/Fase2/late_fusion/train_FASE2_late.py")
-    run_script("src/Fase2/late_fusion/evaluate_late.py") # <-- Assicurati che il file del tribunale si chiami così!
+    if args.stage != "all":
+        stage_map = {
+            "fase1": 0,
+            "fase2-early": 1,
+            "fase2-late": 2,
+            "fase3": 3,
+        }
+        stages = [all_stages[stage_map[args.stage]]]
+    else:
+        stages = all_stages
 
-    print("\n🎉 MISSIONE COMPIUTA! TUTTI I MODELLI SONO STATI ADDESTRATI E VALUTATI! 🎉")
-    print("Controlla i file output_fase1.txt, output_fase2_early.txt e output_fase2_late.txt")
+    success = execute_pipeline(stages, stop_on_error=not args.continue_on_error)
+    
+    if success:
+        print_header("MISSIONE COMPIUTA - TUTTI GLI STEP COMPLETATI")
+        print("Controlla i file output_fase1.txt, output_fase2_early.txt e output_fase2_late.txt\n")
+        sys.exit(0)
+    else:
+        print_header("PIPELINE FALLITA - ERRORE DURANTE L'ESECUZIONE")
+        sys.exit(1)
 
-    run_script("src/Fase3/shap_fase1.py")
-    run_script("src/Fase3/shap_fase2_early.py")
-    run_script("src/Fase3/shap_fase2_late.py")
+
+if __name__ == "__main__":
+    main()

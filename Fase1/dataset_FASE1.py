@@ -1,85 +1,192 @@
 """
-=====================================================================================
-Modulo: dataset.py
-Progetto: ML Emozioni (Popane Dataset) - Fase 1 (ECG)
+Data Pipeline for Phase 1 (ECG-only) - PopaneDataset PyTorch Module
 
-Descrizione:
-Questo script è il "Motore di Caricamento Dati" (Data Pipeline) per PyTorch.
-Definisce la classe custom `PopaneDataset`, che fa da ponte tra i file CSV 
-pesantissimi sul disco rigido e la rete neurale (1D-CNN), gestendo la memoria.
+This module provides lazy loading and preprocessing for ECG time-series data
+from CSV files. The PopaneDataset class is designed to efficiently handle
+large datasets without saturating RAM by loading only requested windows.
 
-Funzionamento (Cosa succede quando la rete chiede un batch di dati):
-1. LAZY LOADING: Legge l'indice (dataset_index_split.csv), apre il file raw specifico
-   ed estrae SOLO le righe richieste (Windowing), evitando di saturare la RAM.
-2. ESTRAZIONE: Seleziona solo la colonna del segnale ECG.
-3. PREPROCESSING: Applica la normalizzazione Z-Score ((x - mean) / std) per 
-   centrare il segnale, aiutando la rete neurale a convergere più velocemente.
-4. TENSORIZZAZIONE: Converte gli array in Tensori PyTorch, impostando la forma 
-   (1, WINDOW_SIZE) richiesta dalle reti convoluzionali 1D (Canali, Lunghezza).
-=====================================================================================
+Key Features:
+- Lazy loading: reads only requested rows from disk
+- Z-score normalization: centers and scales signals
+- PyTorch integration: outputs (channels, length) tensor format for 1D-CNN
 """
 
+import logging
+from typing import Optional, Tuple
+
+import numpy as np
+import pandas as pd
 import torch
 from torch.utils.data import Dataset
-import pandas as pd
-import numpy as np
-
-# ==========================================
-# IMPORTIAMO LE COSTANTI DAL CONFIG
-# ==========================================
 
 from config_FASE1 import SPLIT_INDEX_PATH, WINDOW_SIZE
 
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Dataset constants
+ECG_COLUMN_INDEX = 2
+HEADER_SKIP_ROWS = 1
+NORMALIZE_EPSILON = 1e-8
+VALID_SPLITS = {"train", "val", "test"}
+
+
+def load_split_index(index_path: str) -> pd.DataFrame:
+    """Load the split index CSV file.
+    
+    Args:
+        index_path: Path to the split index CSV.
+        
+    Returns:
+        DataFrame with columns: file_path, subject_id, emotion, label, start_row, end_row, split.
+    """
+    logger.info(f"Loading split index from {index_path}")
+    df = pd.read_csv(index_path)
+    logger.info(f"Loaded {len(df)} total samples")
+    return df
+
+
+def filter_by_split(df: pd.DataFrame, split_type: str) -> pd.DataFrame:
+    """Filter index by split type and reset index.
+    
+    Args:
+        df: Full index DataFrame.
+        split_type: 'train', 'val', or 'test'.
+        
+    Returns:
+        Filtered DataFrame with rows belonging to split_type.
+        
+    Raises:
+        ValueError: If split_type is invalid.
+    """
+    if split_type not in VALID_SPLITS:
+        raise ValueError(f"split_type must be one of {VALID_SPLITS}, got '{split_type}'")
+    
+    filtered = df[df["split"] == split_type].reset_index(drop=True)
+    logger.info(f"Split '{split_type}': {len(filtered)} samples")
+    return filtered
+
+
+def load_ecg_window(
+    file_path: str,
+    start_row: int,
+    window_size: int,
+    column_index: int = ECG_COLUMN_INDEX,
+    skip_rows: int = HEADER_SKIP_ROWS,
+) -> np.ndarray:
+    """Load a single ECG window from CSV file.
+    
+    Args:
+        file_path: Path to the raw CSV file.
+        start_row: Starting row index (0-based) within the file.
+        window_size: Number of rows to read.
+        column_index: Column index for ECG signal (default: 2).
+        skip_rows: Rows to skip before start_row.
+        
+    Returns:
+        1D numpy array of float32 values.
+    """
+    chunk = pd.read_csv(
+        file_path,
+        skiprows=start_row + skip_rows,
+        nrows=window_size,
+        header=None,
+        usecols=[column_index],
+    )
+    
+    ecg_array = chunk.values.flatten()
+    ecg_signal = pd.to_numeric(ecg_array, errors="coerce")
+    ecg_signal = np.nan_to_num(ecg_signal).astype(np.float32)
+    
+    return ecg_signal
+
+
+def normalize_signal(signal: np.ndarray, epsilon: float = NORMALIZE_EPSILON) -> np.ndarray:
+    """Apply Z-score normalization to signal.
+    
+    Args:
+        signal: Input signal (1D array).
+        epsilon: Small value to prevent division by zero.
+        
+    Returns:
+        Normalized signal (mean=0, std~1).
+    """
+    mean = signal.mean()
+    std = signal.std() + epsilon
+    normalized = (signal - mean) / std
+    return normalized.astype(np.float32)
+
+
+def signal_to_tensor(signal: np.ndarray, label: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Convert signal and label to PyTorch tensors.
+    
+    Args:
+        signal: 1D numpy array of shape (window_size,).
+        label: Integer label (0 or 1).
+        
+    Returns:
+        Tuple of (signal_tensor, label_tensor) where signal_tensor has shape (1, window_size).
+    """
+    signal_tensor = torch.FloatTensor(signal).unsqueeze(0)  # Add channel dimension
+    label_tensor = torch.tensor(label, dtype=torch.float32)
+    return signal_tensor, label_tensor
+
+
 class PopaneDataset(Dataset):
-    def __init__(self, split_type="train"):
-        """
+    """PyTorch Dataset for ECG time-series from Popane dataset.
+    
+    Features:
+    - Lazy loading: reads only required windows from disk
+    - Subject-level split: subjects are assigned to train/val/test, not samples
+    - Z-score normalization: centers and scales each window independently
+    - 1D-CNN format: outputs (channels=1, sequence_length) tensors
+    """
+    
+    def __init__(
+        self,
+        split_type: str = "train",
+        index_path: str = SPLIT_INDEX_PATH,
+        window_size: int = WINDOW_SIZE,
+    ):
+        """Initialize dataset.
+        
         Args:
-            split_type: 'train', 'val' o 'test' per caricare solo i dati giusti.
-                        (index_path e window_size ora vengono presi da config.py)
+            split_type: One of 'train', 'val', 'test'.
+            index_path: Path to split_index CSV file.
+            window_size: Number of samples per window.
+            
+        Raises:
+            ValueError: If split_type is invalid or index file not found.
         """
-        # 1. Carichiamo l'indice generale usando il percorso dal config
-        self.full_index = pd.read_csv(SPLIT_INDEX_PATH)
+        self.split_type = split_type
+        self.window_size = window_size
         
-        # 2. Filtriamo SOLO per lo split richiesto e resettiamo l'indice
-        self.index_df = self.full_index[self.full_index['split'] == split_type].reset_index(drop=True)
+        full_index = load_split_index(index_path)
+        self.index_df = filter_by_split(full_index, split_type)
         
-        # Salviamo la window size dal config per usarla nella lettura
-        self.window_size = WINDOW_SIZE
-
-    def __len__(self):
-        # PyTorch ha bisogno di sapere quanti esempi ci sono in questo set
+        logger.info(f"PopaneDataset initialized for '{split_type}' split with {len(self.index_df)} samples")
+    
+    def __len__(self) -> int:
+        """Return total number of samples in this split."""
         return len(self.index_df)
-
-    def __getitem__(self, idx):
-        # 1. Recuperiamo le coordinate della fettina specifica
-        row_info = self.index_df.iloc[idx]
-        file_path = row_info['file_path']
-        start_row = row_info['start_row']
-        label = row_info['label']
-
-        # 2. Caricamento Pigro
-        # AGGIUNTA VIP: + 1 a start_row per saltare l'intestazione testuale (timestamp, affect, ECG...)
-        chunk = pd.read_csv(
-            file_path, 
-            skiprows=start_row + 1, 
-            nrows=self.window_size, 
-            header=None,
-            usecols=[2] 
-        )
+    
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Load and preprocess a single sample.
         
-        # Trasformiamo la colonna in un array 1D e FORZIAMO il tipo a numero decimale (float32)
-        # Se c'è sporcizia nel file, lo convertiamo a numero in modo sicuro
-     # Convertiamo in numerico, forzando gli errori a diventare NaN, e poi riempiamo i NaN con zero
-        ecg_signal = pd.to_numeric(chunk.values.flatten(), errors='coerce')
-        ecg_signal = np.nan_to_num(ecg_signal).astype(np.float32)
-      # --- AGGIUNGI QUESTE RIGHE PER NORMALIZZARE ---
-        mean = ecg_signal.mean()
-        std = ecg_signal.std() + 1e-8 # Aggiungiamo un numero minuscolo per non dividere per zero
-        ecg_signal = (ecg_signal - mean) / std
-        # ----------------------------------------------
-
-        # Trasforma in tensore
-        ecg_tensor = torch.FloatTensor(ecg_signal).unsqueeze(0)
-        label_tensor = torch.tensor(label, dtype=torch.float32)
-
-        return ecg_tensor, label_tensor
+        Args:
+            idx: Sample index within the split.
+            
+        Returns:
+            Tuple of (ecg_tensor, label_tensor) ready for training.
+        """
+        row_info = self.index_df.iloc[idx]
+        file_path = row_info["file_path"]
+        start_row = row_info["start_row"]
+        label = int(row_info["label"])
+        
+        ecg_signal = load_ecg_window(file_path, start_row, self.window_size)
+        ecg_signal = normalize_signal(ecg_signal)
+        signal_tensor, label_tensor = signal_to_tensor(ecg_signal, label)
+        
+        return signal_tensor, label_tensor

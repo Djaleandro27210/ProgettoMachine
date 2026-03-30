@@ -55,8 +55,8 @@ EPOCHS = 80
 
 # Dove salveremo il "cervello" della rete una volta addestrata
 # --- PERCORSI LATE FUSION ---
-MODEL_SAVE_PATH_LATE_ECG = os.path.join(PROCESSED_DIR, "best_late_ecg.pth")
-MODEL_SAVE_PATH_LATE_EDA = os.path.join(PROCESSED_DIR, "best_late_eda.pth")
-MODEL_SAVE_PATH_LATE_AFFECT = os.path.join(PROCESSED_DIR, "best_late_affect.pth")
+MODEL_SAVE_PATH_LATE_ECG = os.path.join("modelli", "best_late_ecg.pth")
+MODEL_SAVE_PATH_LATE_EDA = os.path.join("modelli", "best_late_eda.pth")
+MODEL_SAVE_PATH_LATE_AFFECT = os.path.join("modelli", "best_late_affect.pth")
 #WEIGHT DECAY
 WEIGHT_DECAY = 1e-3

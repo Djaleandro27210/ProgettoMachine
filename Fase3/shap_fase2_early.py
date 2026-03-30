@@ -92,7 +92,7 @@ def esegui_shap_fase2_early():
 
         legend_handles = []
 
-        for channel in range(10):
+        for channel in range(3):
             ax = axes[channel]
             signal = test_inputs_np[i, channel, :].flatten()
             shaps = shap_values_np[i, channel, :].flatten()

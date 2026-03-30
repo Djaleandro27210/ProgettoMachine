@@ -46,3 +46,7 @@ if __name__ == "__main__":
 
     print("\n🎉 MISSIONE COMPIUTA! TUTTI I MODELLI SONO STATI ADDESTRATI E VALUTATI! 🎉")
     print("Controlla i file output_fase1.txt, output_fase2_early.txt e output_fase2_late.txt")
+
+    run_script("src/Fase3/shap_fase1.py")
+    run_script("src/Fase3/shap_fase2_early.py")
+    run_script("src/Fase3/shap_fase2_late.py")

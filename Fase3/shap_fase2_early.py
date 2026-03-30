@@ -56,8 +56,8 @@ def esegui_shap_fase2_early():
     background_inputs = background_inputs.to(device)
 
     test_inputs, test_labels = next(data_iterator)
-    test_inputs = test_inputs[:3].to(device) 
-    test_labels = test_labels[:3].cpu().numpy()
+    test_inputs = test_inputs[:10].to(device) 
+    test_labels = test_labels[:10].cpu().numpy()
 
     # 3. CALCOLO VALORI SHAP
     print("🧠 Inizializzazione GradientExplainer...")
@@ -79,7 +79,7 @@ def esegui_shap_fase2_early():
     # 5. GENERAZIONE GRAFICI
     sensor_names = ["AFFECT (Viso/Postura)", "ECG (Cuore)", "EDA (Sudore)"]
     
-    for i in range(3):
+    for i in range(10):
         label_vera = int(test_labels[i])
         with torch.no_grad():
             output = model(test_inputs[i:i+1])
@@ -92,7 +92,7 @@ def esegui_shap_fase2_early():
 
         legend_handles = []
 
-        for channel in range(3):
+        for channel in range(10):
             ax = axes[channel]
             signal = test_inputs_np[i, channel, :].flatten()
             shaps = shap_values_np[i, channel, :].flatten()

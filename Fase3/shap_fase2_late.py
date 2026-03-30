@@ -60,8 +60,8 @@ def esegui_shap_fase2_late():
     back_aff, back_ecg, back_eda, _ = next(data_iterator)
     
     t_aff, t_ecg, t_eda, t_labels = next(data_iterator)
-    t_aff, t_ecg, t_eda = t_aff[:3].to(device), t_ecg[:3].to(device), t_eda[:3].to(device)
-    t_labels = t_labels[:3].numpy()
+    t_aff, t_ecg, t_eda = t_aff[:10].to(device), t_ecg[:10].to(device), t_eda[:10].to(device)
+    t_labels = t_labels[:10].numpy()
 
     # 3. CREAZIONE DI 3 EXPLAINER (Uno per giudice)
     print("🧠 Inizializzazione dei 3 Explainers...")
@@ -79,7 +79,7 @@ def esegui_shap_fase2_late():
     plots_dir = os.path.join(current_dir, 'plots_late_fusion')
     os.makedirs(plots_dir, exist_ok=True)
 
-    for i in range(3):
+    for i in range(10):
         # Calcolo voti singoli
         with torch.no_grad():
             v_aff = 1 if torch.sigmoid(model_aff(t_aff[i:i+1])).item() > 0.5 else 0

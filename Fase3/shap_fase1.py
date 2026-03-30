@@ -57,8 +57,8 @@ def esegui_shap_fase1():
     background_inputs = background_inputs.to(device)
 
     test_inputs, test_labels = next(data_iterator)
-    test_inputs = test_inputs[:5].to(device) # Analizziamo i primi 5 pazienti
-    test_labels = test_labels[:5].cpu().numpy()
+    test_inputs = test_inputs[:10].to(device) # Analizziamo i primi 10 pazienti
+    test_labels = test_labels[:10].cpu().numpy()
 
     # 3. CALCOLO VALORI SHAP
     print("🧠 Inizializzazione GradientExplainer...")
@@ -83,7 +83,7 @@ def esegui_shap_fase1():
     # 5. GENERAZIONE GRAFICI
     print("🎨 Generazione grafici in corso...")
     
-    for i in range(5):
+    for i in range(10):
         # Estrazione e pulizia dati (Fix per il TypeError)
         signal = test_inputs_np[i, 0, :].flatten()
         shaps = np.squeeze(shap_values_np[i, 0, :]).flatten()
@@ -155,10 +155,7 @@ punti del segnale ECG hanno influenzato la decisione del modello.
      si colora qui, sta analizzando la HRV (Heart Rate Variability).
 
 3. LOGICA MATEMATICA:
-   La decisione finale del modello segue questa logica additiva:
-   $Output(x) = E[f(x)] + \sum_{i=1}^{n} \phi_i$
-   Dove $E[f(x)]$ è la previsione media (background) e $\phi_i$ è il valore SHAP di 
-   ogni campione. Se la somma dei 'rossi' supera quella dei 'blu', il modello 
+   Se la somma dei 'rossi' supera quella dei 'blu', il modello 
    predice un'emozione positiva.
 
 4. ANALISI DEGLI ERRORI (Falsi Positivi/Negativi):

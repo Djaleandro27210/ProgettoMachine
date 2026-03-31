@@ -1,12 +1,12 @@
 """
 =====================================================================================
-Modulo: models_fase2.py
-Progetto: ML Emozioni - Fase 2 (Multimodale Early Fusion)
+Module: models_fase2.py
+Project: ML Emotions - Phase 2 (Multimodal Early Fusion)
 
-Descrizione:
-Architettura 1D-CNN Multimodale. 
-Prende in ingresso un tensore con 3 canali (Affect, ECG, EDA) contemporaneamente.
-Usa la Batch Normalization per stabilizzare i calcoli tra i diversi segnali.
+Description:
+Multimodal 1D-CNN Architecture.
+Takes as input a tensor with 3 channels (Affect, ECG, EDA) simultaneously.
+Uses Batch Normalization to stabilize calculations between different signals.
 =====================================================================================
 """
 
@@ -15,7 +15,7 @@ import torch.nn as nn
 from config_FASE2_early import WINDOW_SIZE
 
 class MultimodalEarlyFusionCNN(nn.Module):
-    """1D CNN early-fusion per tre segnali (Affect, ECG, EDA)."""
+    """1D CNN early-fusion for three signals (Affect, ECG, EDA)."""
 
     def __init__(
         self,
@@ -56,28 +56,28 @@ class MultimodalEarlyFusionCNN(nn.Module):
 
     @staticmethod
     def _compute_feature_map_length(window_size: int, kernel_size: int = 7, pool_size: int = 2, conv_blocks: int = 2) -> int:
-        """Calcola la lunghezza di uscita dopo Conv1D + Pooling senza tangenti dinamiche."""
+        """Computes the output length after Conv1D + Pooling without dynamic padding."""
         length = window_size
         for _ in range(conv_blocks):
             length = length - (kernel_size - 1)
             if length <= 0:
-                raise ValueError(f"Il window_size ({window_size}) è troppo piccolo per la pipeline convoluzionale")
+                raise ValueError(f"The window_size ({window_size}) is too small for the convolutional pipeline")
             length = length // pool_size
         if length <= 0:
-            raise ValueError(f"Il window_size ({window_size}) va ridotto o aumentato per mantenere dimensioni positive")
+            raise ValueError(f"The window_size ({window_size}) should be reduced or increased to maintain positive dimensions")
         return length
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass. Output logits (per binarizzazione BCEWithLogitsLoss)."""
+        """Forward pass. Outputs logits for binary classification with BCEWithLogitsLoss."""
         x = self.feature_extractor(x)
         x = torch.flatten(x, start_dim=1)
         return self.classifier(x)
 
     def predict_proba(self, x: torch.Tensor) -> torch.Tensor:
-        """Restituisce le probabilità predette dopo sigmoid."""
+        """Returns predicted probabilities after sigmoid."""
         logits = self.forward(x)
         return torch.sigmoid(logits)
 
     def num_parameters(self) -> int:
-        """Restituisce il numero totale di parametri addestrabili."""
+        """Returns the total number of trainable parameters."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)

@@ -1,16 +1,14 @@
-"FILE PER LE VARIABILI GLOBALI DI CONFIGURAZIONE"
-
 
 """
 =========================================================
 File: config.py
-Descrizione: Costanti globali e parametri del progetto.
+Description: Global constants and project parameters.
 =========================================================
 """
 import os
 
 # ==========================================
-# 1. PERCORSI (PATHS)
+# 1. PATHS
 # ==========================================
 BASE_DIR = "dataset"
 RAW_DIR = os.path.join(BASE_DIR, "raw")
@@ -20,12 +18,12 @@ INDEX_PATH = os.path.join(PROCESSED_DIR, "dataset_index.csv")
 SPLIT_INDEX_PATH = os.path.join(PROCESSED_DIR, "dataset_index_split.csv")
 
 # ==========================================
-# 2. PARAMETRI DEL SEGNALE E DATASET
+# 2. SIGNAL AND DATASET PARAMETERS
 # ==========================================
-# Quanti campioni formano una "fettina" (1000 = 1 secondo a 1000Hz)
+# How many samples form a "slice" (1000 = 1 second at 1000Hz)
 WINDOW_SIZE = 1000 
 
-# Le emozioni che ci interessano e il loro mapping (0 = Negative, 1 = Positive)
+# The emotions we are interested in and their mapping (0 = Negative, 1 = Positive)
 EMOTION_MAP = {
     'amusement': 1,
     'positive_emotion_low_approach': 1,
@@ -40,13 +38,13 @@ EMOTION_MAP = {
     'fear': 0
 }
 # ==========================================
-# 3. PARAMETRI DI TRAINING (Hyperparameters)
+# 3. TRAINING PARAMETERS (Hyperparameters)
 # ==========================================
-#PESI PER GESTIONE CLASSI SBILANCIATE (pos_weight per BCEWithLogitsLoss)
+# WEIGHTS FOR HANDLING IMBALANCED CLASSES (pos_weight for BCEWithLogitsLoss)
 WEIGHT_DEECAY = 1e-4
 BATCH_SIZE = 32
 
-# Il "tasso di apprendimento": quanto velocemente la rete cambia idea (troppo alto = sbanda, troppo basso = non impara mai)
+# The "learning rate": how quickly the network changes its mind (too high = oscillates, too low = never learns)
 LEARNING_RATE = 0.0001
 
 # Quante volte la rete vedrà l'INTERO dataset 

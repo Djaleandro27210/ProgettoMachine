@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 CLASSIFICATION_THRESHOLD = 0.5
 OUTPUT_FILENAME = "output_fase1.txt"
-CLASS_NAMES = ["Emozione Negativa (0)", "Emozione Positiva (1)"]
+CLASS_NAMES = ["Negative Emotion (0)", "Positive Emotion (1)"]
 
 
 def get_device() -> torch.device:

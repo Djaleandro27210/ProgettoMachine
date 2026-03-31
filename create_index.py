@@ -1,3 +1,13 @@
+"""
+Module: create_index.py
+Project: ML Emotions - Dataset Indexing
+
+Description:
+This module creates an index for the dataset from raw CSV files. It scans the raw data directory,
+parses emotion labels from filenames, and generates windowed entries for machine learning processing.
+Supports undersampling of positive labels to balance the dataset.
+"""
+
 import argparse
 import glob
 import logging
@@ -29,12 +39,12 @@ def parse_emotion_from_filename(filepath: str, emotion_map: Dict[str, int]) -> O
     name_without_ext = Path(filepath).stem
     parts = name_without_ext.split("_", 1)
     if len(parts) != 2:
-        logger.debug("Saltato file senza pattern emotion: %s", filepath)
+        logger.debug("Skipped file without emotion pattern: %s", filepath)
         return None
 
     emotion = parts[1].strip().lower()
     if emotion not in emotion_map:
-        logger.debug("Saltata emotion non mappata: %s -> %s", filepath, emotion)
+        logger.debug("Skipped unmapped emotion: %s -> %s", filepath, emotion)
         return None
 
     return emotion, emotion_map[emotion]
@@ -72,11 +82,11 @@ def should_keep_window(label: int, window_idx: int, undersample_positive: bool =
 
 
 def build_index(undersample_positive: bool = True) -> pd.DataFrame:
-    logger.info("Inizio scansione dataset in %s", RAW_DIR)
+    logger.info("Starting dataset scan in %s", RAW_DIR)
 
     search_pattern = os.path.join(RAW_DIR, "**", "*.csv")
     csv_files = glob.glob(search_pattern, recursive=True)
-    logger.info("Trovati %d file CSV", len(csv_files))
+    logger.info("Found %d CSV files", len(csv_files))
 
     entries: List[IndexEntry] = []
 
@@ -89,7 +99,7 @@ def build_index(undersample_positive: bool = True) -> pd.DataFrame:
         subject_id, data_rows = scan_file_metadata(filepath)
 
         if data_rows < WINDOW_SIZE:
-            logger.debug("[SKIP] %s con %d righe dati < %d", filepath, data_rows, WINDOW_SIZE)
+            logger.debug("[SKIP] %s with %d data rows < %d", filepath, data_rows, WINDOW_SIZE)
             continue
 
         for window_idx, (start_row, end_row) in enumerate(generate_window_bounds(data_rows, WINDOW_SIZE)):
@@ -106,20 +116,20 @@ def build_index(undersample_positive: bool = True) -> pd.DataFrame:
             ))
 
     df_index = pd.DataFrame([entry.__dict__ for entry in entries])
-    logger.info("Finito – record creati: %d", len(df_index))
+    logger.info("Finished – records created: %d", len(df_index))
     return df_index
 
 
 def save_index(df_index: pd.DataFrame, output_dir: str = PROCESSED_DIR, index_filename: str = INDEX_PATH) -> str:
     os.makedirs(output_dir, exist_ok=True)
     df_index.to_csv(index_filename, index=False)
-    logger.info("Indice salvato in %s", index_filename)
+    logger.info("Index saved in %s", index_filename)
     return index_filename
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Crea l\'indice del dataset da file raw CSV.')
-    parser.add_argument('--no-undersample-positive', action='store_true', help='Disabilita undersampling di label 1')
+    parser = argparse.ArgumentParser(description='Create the dataset index from raw CSV files.')
+    parser.add_argument('--no-undersample-positive', action='store_true', help='Disable undersampling of label 1')
     args = parser.parse_args()
 
     df_index = build_index(undersample_positive=not args.no_undersample_positive)

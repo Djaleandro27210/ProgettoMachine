@@ -1,11 +1,11 @@
 """
 =====================================================================================
-Modulo: dataset_FASE2_late.py
-Progetto: ML Emozioni - Fase 2 (Late Fusion)
+Module: dataset_FASE2_late.py
+Project: ML Emotions - Phase 2 (Late Fusion)
 
-Descrizione:
-Carica 3 segnali (Affect, ECG, EDA), li normalizza separatamente,
-ma invece di fonderli, li restituisce come 3 tensori indipendenti di forma (1, 1000).
+Description:
+Loads 3 signals (Affect, ECG, EDA), normalizes them separately,
+but instead of fusing them, returns them as 3 independent tensors of shape (1, 1000).
 =====================================================================================
 """
 
@@ -13,7 +13,7 @@ import torch
 import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset
-from config_FASE2_late import SPLIT_INDEX_PATH, WINDOW_SIZE # Assicurati che il nome del config sia giusto!
+from config_FASE2_late import SPLIT_INDEX_PATH, WINDOW_SIZE
 
 class PopaneDatasetLateFusion(Dataset):
     def __init__(self, split_type="train", transform=None):
@@ -44,7 +44,7 @@ class PopaneDatasetLateFusion(Dataset):
         return (*tensor_channels, label_tensor)
 
     def _read_window(self, file_path: str, start_row: int) -> np.ndarray:
-        """Legge una finestra di righe dal CSV, ritorna array 3xwindow_size."""
+        """Reads a window of rows from the CSV, returns array 3xwindow_size."""
         chunk = pd.read_csv(
             file_path,
             skiprows=start_row + 1,
@@ -57,7 +57,7 @@ class PopaneDatasetLateFusion(Dataset):
         return np.nan_to_num(signals)
 
     def _normalize(self, signals: np.ndarray) -> np.ndarray:
-        """Applica normalizzazione z-score su ogni canale separatamente."""
+        """Applies z-score normalization on each channel separately."""
         means = signals.mean(axis=1, keepdims=True)
         stds = signals.std(axis=1, keepdims=True)
         stds = np.where(stds < 1e-8, 1e-8, stds)

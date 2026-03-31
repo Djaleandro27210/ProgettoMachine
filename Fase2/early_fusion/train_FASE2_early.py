@@ -1,12 +1,12 @@
 """
 =====================================================================================
-Modulo: train_FASE2_early.py
-Progetto: ML Emozioni - Fase 2 (Addestramento Early Fusion)
+Module: train_FASE2_early.py
+Project: ML Emotions - Phase 2 (Early Fusion Training)
 
-Descrizione:
-Script di addestramento per l'architettura Early Fusion a 3 canali.
-Integrato con Early Stopping e Learning Rate Scheduler.
-Salva il modello migliore su disco BASANDOSI SUL MACRO F1-SCORE.
+Description:
+Training script for the 3-channel Early Fusion architecture.
+Integrated with Early Stopping and Learning Rate Scheduler.
+Saves the best model on disk BASED ON MACRO F1-SCORE.
 =====================================================================================
 """
 
@@ -14,21 +14,21 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from sklearn.metrics import f1_score # <-- IMPORT FONDAMENTALE PER L'F1
+from sklearn.metrics import f1_score # <-- IMPORTANT IMPORT FOR F1
 
-# ⚠️ ATTENZIONE: Importiamo dai file della FASE 2!
+# ⚠️ WARNING: Importing from Phase 2 files!
 from config_FASE2_early import BATCH_SIZE, LEARNING_RATE, EPOCHS, MODEL_SAVE_PATH_FASE2
 from dataset_FASE2_early import PopaneDatasetMultimodal
 from model_FASE2_early import MultimodalEarlyFusionCNN
 
 
 def get_device() -> torch.device:
-    """Restituisce il dispositivo disponibile per l'addestramento."""
+    """Returns the available device for training."""
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def create_data_loaders(batch_size: int = BATCH_SIZE):
-    """Costruisce i DataLoader per training e validation."""
+    """Builds the DataLoader for training and validation."""
     train_dataset = PopaneDatasetMultimodal(split_type="train")
     val_dataset = PopaneDatasetMultimodal(split_type="val")
 
@@ -39,23 +39,23 @@ def create_data_loaders(batch_size: int = BATCH_SIZE):
 
 
 def build_model(device: torch.device):
-    """Crea il modello di rete e lo invia al dispositivo."""
+    """Creates the network model and sends it to the device."""
     model = MultimodalEarlyFusionCNN()
     return model.to(device)
 
 
 def build_optimizer(model: torch.nn.Module):
-    """Crea l'ottimizzatore."""
+    """Creates the optimizer."""
     return optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-4)
 
 
 def build_scheduler(optimizer):
-    """Crea lo scheduler di LR."""
+    """Creates the LR scheduler."""
     return optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=4)
 
 
 def compute_pos_weight(train_loader: DataLoader, device: torch.device) -> torch.Tensor:
-    """Calcola il peso per la classe positiva per BCEWithLogitsLoss."""
+    """Calculates the weight for the positive class for BCEWithLogitsLoss."""
     positives = 0
     negatives = 0
 
@@ -71,7 +71,7 @@ def compute_pos_weight(train_loader: DataLoader, device: torch.device) -> torch.
 
 
 def batch_metrics(outputs: torch.Tensor, labels: torch.Tensor):
-    """Predizioni binarie e metriche basiche di batch."""
+    """Binary predictions and basic batch metrics."""
     probs = torch.sigmoid(outputs)
     preds = (probs > 0.5).float()
     loss_labels = labels.view_as(preds)
@@ -102,7 +102,7 @@ def train_one_epoch(model: torch.nn.Module, loader: DataLoader, criterion, optim
         total += batch_total
 
         if batch_idx % 500 == 0:
-            print(f"   -> Elaborato batch {batch_idx}/{len(loader)}")
+            print(f"   -> Processed batch {batch_idx}/{len(loader)}")
 
     return total_loss / max(total, 1), 100.0 * correct / max(total, 1)
 
@@ -167,7 +167,7 @@ def evaluate(model: torch.nn.Module, loader: DataLoader, criterion, device: torc
 
 def train_early_fusion():
     device = get_device()
-    print(f"Inizio addestramento EARLY FUSION. Dispositivo: {device}")
+    print(f"Starting EARLY FUSION training. Device: {device}")
 
     train_loader, val_loader = create_data_loaders()
     model = build_model(device)
@@ -177,7 +177,7 @@ def train_early_fusion():
     pos_weight = compute_pos_weight(train_loader, device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
-    print(f"pos_weight calcolato: {pos_weight.item():.4f}")
+    print(f"Calculated pos_weight: {pos_weight.item():.4f}")
 
     patience_early_stopping = 10
     epochs_no_improve = 0
@@ -187,7 +187,7 @@ def train_early_fusion():
         train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device)
         val_loss, val_acc, val_f1 = evaluate(model, val_loader, criterion, device)
 
-        print(f"Epoca [{epoch}/{EPOCHS}] - Train Loss: {train_loss:.4f} - "
+        print(f"Epoch [{epoch}/{EPOCHS}] - Train Loss: {train_loss:.4f} - "
               f"Val Loss: {val_loss:.4f} - Val Acc: {val_acc:.2f}% - Val F1-Macro: {val_f1:.4f}")
 
         scheduler.step(val_loss)
@@ -196,16 +196,16 @@ def train_early_fusion():
             best_val_f1 = val_f1
             epochs_no_improve = 0
             torch.save(model.state_dict(), MODEL_SAVE_PATH_FASE2)
-            print(f"Nuovo record F1-Macro {best_val_f1:.4f}, modello salvato in {MODEL_SAVE_PATH_FASE2}.")
+            print(f"New F1-Macro record {best_val_f1:.4f}, model saved in {MODEL_SAVE_PATH_FASE2}.")
         else:
             epochs_no_improve += 1
-            print(f"Nessun miglioramento F1 da {epochs_no_improve}/{patience_early_stopping} epoche.")
+            print(f"No F1 improvement for {epochs_no_improve}/{patience_early_stopping} epochs.")
 
         if epochs_no_improve >= patience_early_stopping:
-            print(f"Early stopping innescato all'epoca {epoch}.")
+            print(f"Early stopping triggered at epoch {epoch}.")
             break
 
-    print(f"Addestramento completato. Best Val F1-Macro: {best_val_f1:.4f}")
+    print(f"Training completed. Best Val F1-Macro: {best_val_f1:.4f}")
 
 
 if __name__ == "__main__":

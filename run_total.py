@@ -32,37 +32,37 @@ def print_header(message: str) -> None:
 
 def run_script(script_path: str, verbose: bool = True) -> bool:
     if verbose:
-        print(f"[EXEC] Avvio: {script_path}")
+        print(f"[EXEC] Starting: {script_path}")
     
     result = subprocess.run([sys.executable, script_path])
     
     if result.returncode != 0:
-        print(f"[ERROR] Script fallito: {script_path}")
+        print(f"[ERROR] Script failed: {script_path}")
         return False
     
-    print(f"[OK] Completato: {script_path}")
+    print(f"[OK] Completed: {script_path}")
     if verbose:
-        print(f"[INFO] Pausa {COOLDOWN_SECONDS}s per raffreddare sistema...\n")
+        print(f"[INFO] Pausing {COOLDOWN_SECONDS}s to cool down system...\n")
         time.sleep(COOLDOWN_SECONDS)
     
     return True
 
 
 def run_stage(stage: PipelineStage, stop_on_error: bool = True) -> bool:
-    print_header(f"FASE: {stage.name}")
+    print_header(f"PHASE: {stage.name}")
     
     for script_path in stage.scripts:
         success = run_script(script_path)
         if not success and stop_on_error:
-            print(f"[FATAL] Pipeline interrotta a causa di errore in {script_path}")
+            print(f"[FATAL] Pipeline interrupted due to error in {script_path}")
             return False
     
     return True
 
 
 def execute_pipeline(stages: List[PipelineStage], stop_on_error: bool = True) -> bool:
-    print_header("INIZIO PIPELINE COMPLETA")
-    print("Mettiti comodo, ci vediamo tra un paio di giorni...\n")
+    print_header("STARTING COMPLETE PIPELINE")
+    print("Get comfortable, see you in a couple of days...\n")
     
     for stage in stages:
         success = run_stage(stage, stop_on_error=stop_on_error)
@@ -75,28 +75,28 @@ def execute_pipeline(stages: List[PipelineStage], stop_on_error: bool = True) ->
 def get_default_pipeline() -> List[PipelineStage]:
     return [
         PipelineStage(
-            name="FASE 1 - Unimodale",
+            name="PHASE 1 - Unimodal",
             scripts=[
                 "src/Fase1/train_FASE1.py",
                 "src/Fase1/evaluate.py",
             ],
         ),
         PipelineStage(
-            name="FASE 2 - Early Fusion",
+            name="PHASE 2 - Early Fusion",
             scripts=[
                 "src/Fase2/early_fusion/train_FASE2_early.py",
                 "src/Fase2/early_fusion/evaluate.py",
             ],
         ),
         PipelineStage(
-            name="FASE 2 - Late Fusion",
+            name="PHASE 2 - Late Fusion",
             scripts=[
                 "src/Fase2/late_fusion/train_FASE2_late.py",
                 "src/Fase2/late_fusion/evaluate_late.py",
             ],
         ),
         PipelineStage(
-            name="FASE 3 - Analisi SHAP",
+            name="PHASE 3 - SHAP Analysis",
             scripts=[
                 "src/Fase3/shap_fase1.py",
                 "src/Fase3/shap_fase2_early.py",
@@ -108,19 +108,19 @@ def get_default_pipeline() -> List[PipelineStage]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Orchestratore di pipeline - esecuzione sequenziale con monitoring"
+        description="Pipeline orchestrator - sequential execution with monitoring"
     )
     parser.add_argument(
         "--stage",
         type=str,
         choices=["fase1", "fase2-early", "fase2-late", "fase3", "all"],
         default="all",
-        help="Quale fase eseguire (default: all)",
+        help="Which phase to execute (default: all)",
     )
     parser.add_argument(
         "--continue-on-error",
         action="store_true",
-        help="Continua anche se uno script fallisce",
+        help="Continue even if a script fails",
     )
     args = parser.parse_args()
 
@@ -140,11 +140,11 @@ def main() -> None:
     success = execute_pipeline(stages, stop_on_error=not args.continue_on_error)
     
     if success:
-        print_header("MISSIONE COMPIUTA - TUTTI GLI STEP COMPLETATI")
-        print("Controlla i file output_fase1.txt, output_fase2_early.txt e output_fase2_late.txt\n")
+        print_header("MISSION ACCOMPLISHED - ALL STEPS COMPLETED")
+        print("Check the files output_fase1.txt, output_fase2_early.txt and output_fase2_late.txt\n")
         sys.exit(0)
     else:
-        print_header("PIPELINE FALLITA - ERRORE DURANTE L'ESECUZIONE")
+        print_header("PIPELINE FAILED - ERROR DURING EXECUTION")
         sys.exit(1)
 
 

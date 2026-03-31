@@ -1,3 +1,12 @@
+"""
+Module: split_data.py
+Project: ML Emotions - Dataset Splitting
+
+Description:
+This module performs subject-wise splitting of the dataset into train, validation, and test sets.
+It ensures that data from the same subject does not appear in multiple splits to prevent data leakage.
+"""
+
 import argparse
 import logging
 from dataclasses import dataclass
@@ -29,15 +38,15 @@ class SplitRatios:
 
 
 def load_index(index_path: str) -> pd.DataFrame:
-    logger.info("Caricamento indice da %s", index_path)
+    logger.info("Loading index from %s", index_path)
     df = pd.read_csv(index_path)
-    logger.info("Indice caricato: %d righe", len(df))
+    logger.info("Index loaded: %d rows", len(df))
     return df
 
 
 def extract_subjects(df: pd.DataFrame) -> np.ndarray:
     subjects = df["subject_id"].unique()
-    logger.info("Trovati %d soggetti unici", len(subjects))
+    logger.info("Found %d unique subjects", len(subjects))
     return subjects
 
 
@@ -54,7 +63,7 @@ def split_subjects(subjects: np.ndarray, ratios: SplitRatios, seed: int = RANDOM
     test_subjects = subjects[n_train + n_val :]
 
     logger.info(
-        "Split soggetti -> train: %d | val: %d | test: %d",
+        "Subject split -> train: %d | val: %d | test: %d",
         len(train_subjects),
         len(val_subjects),
         len(test_subjects),
@@ -119,7 +128,7 @@ def print_distribution_report(distribution: Dict[str, Dict]) -> None:
 
 def save_split_index(df: pd.DataFrame, output_path: str) -> None:
     df.to_csv(output_path, index=False)
-    logger.info("Split index salvato in %s", output_path)
+    logger.info("Split index saved to %s", output_path)
 
 
 def perform_subject_split(
@@ -144,11 +153,11 @@ def perform_subject_split(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Effettua lo split soggetto-wise del dataset compilato.")
-    parser.add_argument("--index-path", default=INDEX_PATH, help="Path al dataset index")
-    parser.add_argument("--output-path", default=SPLIT_INDEX_PATH, help="Path output split index")
-    parser.add_argument("--train-ratio", type=float, default=0.70, help="Frazione train (default: 0.70)")
-    parser.add_argument("--val-ratio", type=float, default=0.15, help="Frazione validation (default: 0.15)")
+    parser = argparse.ArgumentParser(description="Performs subject-wise splitting of the compiled dataset.")
+    parser.add_argument("--index-path", default=INDEX_PATH, help="Path to the dataset index")
+    parser.add_argument("--output-path", default=SPLIT_INDEX_PATH, help="Output path for split index")
+    parser.add_argument("--train-ratio", type=float, default=0.70, help="Train fraction (default: 0.70)")
+    parser.add_argument("--val-ratio", type=float, default=0.15, help="Validation fraction (default: 0.15)")
     parser.add_argument("--seed", type=int, default=RANDOM_SEED, help="Random seed (default: 42)")
     args = parser.parse_args()
 

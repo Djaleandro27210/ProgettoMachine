@@ -1,22 +1,22 @@
 """
 =====================================================================================
-Module: model_fase2_late.py
-Project: ML Emotions - Phase 2 (Late Fusion)
+Modulo: model_fase2_late.py
+Progetto: ML Emozioni - Fase 2 (Late Fusion)
 
-Description:
-Unimodal 1D-CNN Architecture (with 1 single channel).
-It will be instantiated 3 times (one for ECG, one for EDA, one for Affect).
+Descrizione:
+Architettura 1D-CNN Unimodale (a 1 singolo canale).
+Verrà istanziata 3 volte (una per l'ECG, una per l'EDA, una per l'Affect).
 =====================================================================================
 """
 import torch
 import torch.nn as nn
-from config_FASE2_late import WINDOW_SIZE # Make sure the config name is correct
+from config_FASE2_late import WINDOW_SIZE # Assicurati che il nome del config sia giusto
 
 class UnimodalCNN(nn.Module):
     def __init__(self, window_size=WINDOW_SIZE):
         super(UnimodalCNN, self).__init__()
         
-     
+        # Lavoriamo con 1 solo canale in ingresso!
         self.feature_extractor = nn.Sequential(
             nn.Conv1d(in_channels=1, out_channels=18, kernel_size=7),
             nn.BatchNorm1d(18),

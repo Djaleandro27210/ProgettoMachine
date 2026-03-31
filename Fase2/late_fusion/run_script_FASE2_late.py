@@ -1,7 +1,7 @@
 """
 =====================================================================================
-Emotions Project Orchestrator
-Sequentially launches the entire pipeline: Data Split -> Training -> Testing
+Orchestratore Progetto Emozioni
+Avvia in sequenza tutta la pipeline: Split Dati -> Training -> Testing
 =====================================================================================
 """
 import subprocess
@@ -10,35 +10,35 @@ import time
 
 def run_script(script_path):
     print(f"\n{'='*60}")
-    print(f"STARTING PHASE 2: {script_path}")
+    print(f"🚀 AVVIO FASE 2: {script_path}")
     print(f"{'='*60}\n")
     
-    # Executes the script as if you were launching it from the terminal
+    # Esegue lo script come se lo lanciassi tu dal terminale
     result = subprocess.run([sys.executable, script_path])
     
-    # If the script crashes (e.g., nan error or file not found), stop everything!
+    # Se lo script crasha (es. errore nan o file non trovato), ferma tutto!
     if result.returncode != 0:
-        print(f"\nCRITICAL ERROR: Phase '{script_path}' failed. Pipeline interrupted.")
+        print(f"\n❌ ERRORE CRITICO: La fase '{script_path}' è fallita. Pipeline interrotta.")
         sys.exit(1)
     
-    print(f"\nPHASE COMPLETED: {script_path}")
-    time.sleep(3) # Pause of 3 seconds to cool down the CPU and clear RAM
+    print(f"\n✅ FASE COMPLETATA: {script_path}")
+    time.sleep(3) # Pausa di 3 secondi per far raffreddare la CPU e svuotare la RAM
 
 if __name__ == "__main__":
-    print("STARTING COMPLETE PIPELINE - ML PROJECT")
-    print("Get comfortable, the PC will work for a while...\n")
+    print("🔥 INIZIO PIPELINE COMPLETA - PROGETTO ML 🔥")
+    print("Mettiti comodo, il PC lavorerà per un bel po'...\n")
     
-    # --- PHASE 1: DATA PREPARATION ---
-    # Uncomment the lines below if you want to recreate the index from scratch every time
+    # --- FASE 1: PREPARAZIONE DATI ---
+    # Scommenta le righe sotto se vuoi che ricrei l'indice da zero ogni volta
     # run_script("src/create_index.py")
     # run_script("src/split_data.py")
     
-    # --- PHASE 2: TRAINING ---
+    # --- FASE 2: ADDESTRAMENTO ---
     run_script("src/Fase2/late_fusion/train_FASE2_late.py")
     
 
-    # --- PHASE 4: COMPLETE EVALUATION AND PRINT RESULTS ---
-    # Replace "src/Fase1/evaluate.py" with the exact path where you saved 
-    # the code of "evaluate.py" (the one with evaluate_model)
+    # --- FASE 4: VALUTAZIONE COMPLETA E STAMPA RISULTATI ---
+    # Sostituisci "src/Fase1/evaluate.py" con il percorso esatto dove hai salvato 
+    # il codice di "evaluate.py" (quello con valuta_modello)
     run_script("src/Fase2/late_fusion/evaluate.py")
-    print("\nTHE ENTIRE PIPELINE HAS FINISHED SUCCESSFULLY! THE MODEL IS READY!")
+    print("\n🎉 TUTTA LA PIPELINE È TERMINATA CON SUCCESSO! IL MODELLO È PRONTO! 🎉")

@@ -1,16 +1,17 @@
+"FILE PER LE VARIABILI GLOBALI DI CONFIGURAZIONE"
 
 
 """
 =========================================================
 File: config.py
-Description: Global constants and project parameters.
-Modify the values here to apply them to all the code!
+Descrizione: Costanti globali e parametri del progetto.
+Modifica i valori qui per applicarli a tutto il codice!
 =========================================================
 """
 import os
 
 # ==========================================
-# 1. PATHS
+# 1. PERCORSI (PATHS)
 # ==========================================
 BASE_DIR = "dataset"
 RAW_DIR = os.path.join(BASE_DIR, "raw")
@@ -20,12 +21,13 @@ INDEX_PATH = os.path.join(PROCESSED_DIR, "dataset_index.csv")
 SPLIT_INDEX_PATH = os.path.join(PROCESSED_DIR, "dataset_index_split.csv")
 
 # ==========================================
-# 2. SIGNAL AND DATASET PARAMETERS
+# 2. PARAMETRI DEL SEGNALE E DATASET
 # ==========================================
-# How many samples form a "slice" (1000 = 1 second at 1000Hz)
+# Quanti campioni formano una "fettina" (1000 = 1 secondo a 1000Hz)
+# Se vuoi provare i 130 del paper originale, ti basta cambiare questo numero!
 WINDOW_SIZE = 1000 
 
-# The emotions we are interested in and their mapping (0 = Negative, 1 = Positive)
+# Le emozioni che ci interessano e il loro mapping (0 = Negative, 1 = Positive)
 EMOTION_MAP = {
     'amusement': 1,
     'positive_emotion_low_approach': 1,
@@ -40,21 +42,21 @@ EMOTION_MAP = {
     'fear': 0
 }
 # ==========================================
-# 3. TRAINING PARAMETERS (Hyperparameters)
+# 3. PARAMETRI DI TRAINING (Hyperparameters)
 # ==========================================
-# How many slices the network reads before updating the weights
+# Quante fettine legge la rete prima di aggiornare i pesi
 BATCH_SIZE = 32
 
-# The "learning rate": how quickly the network changes its mind (too high = oscillates, too low = never learns)
+# Il "tasso di apprendimento": quanto velocemente la rete cambia idea (troppo alto = sbanda, troppo basso = non impara mai)
 LEARNING_RATE = 0.0001
 
-# How many times the network sees the entire dataset during training
+# Quante volte la rete vedrà l'INTERO dataset (tutte le 86.850 fettine)
 EPOCHS = 80
 
-
-# --- LATE FUSION PATHS ---
-MODEL_SAVE_PATH_LATE_ECG = os.path.join("modelli", "best_late_ecg.pth")
-MODEL_SAVE_PATH_LATE_EDA = os.path.join("modelli", "best_late_eda.pth")
-MODEL_SAVE_PATH_LATE_AFFECT = os.path.join("modelli", "best_late_affect.pth")
-# WEIGHT DECAY
+# Dove salveremo il "cervello" della rete una volta addestrata
+# --- PERCORSI LATE FUSION ---
+MODEL_SAVE_PATH_LATE_ECG = os.path.join(PROCESSED_DIR, "best_late_ecg.pth")
+MODEL_SAVE_PATH_LATE_EDA = os.path.join(PROCESSED_DIR, "best_late_eda.pth")
+MODEL_SAVE_PATH_LATE_AFFECT = os.path.join(PROCESSED_DIR, "best_late_affect.pth")
+#WEIGHT DECAY
 WEIGHT_DECAY = 1e-3

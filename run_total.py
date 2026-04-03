@@ -1,52 +1,60 @@
 """
-=====================================================================================
-Orchestratore SUPREMO - Esecuzione Sequenziale Sicura
-Lancialo, esci di casa per 2 giorni, e torna a goderti i risultati.
-=====================================================================================
+master_orchestrator.py
+Master sequential orchestrator for the entire ML project.
+Executes Phase 1, Phase 2 (Early & Late Fusion), and Phase 3 (SHAP XAI) sequentially.
 """
+
 import subprocess
 import sys
 import time
 
-def run_script(script_path):
-    print(f"\n{'='*60}")
-    print(f"🚀 AVVIO FASE: {script_path}")
-    print(f"{'='*60}\n")
+COOLDOWN_SECONDS = 10
+
+
+def run_script(script_path: str) -> None:
+    print(f"\n{'-' * 60}")
+    print(f"[INFO] Executing: {script_path}")
+    print(f"{'-' * 60}\n")
     
-    # Esegue lo script
     result = subprocess.run([sys.executable, script_path])
     
-    # Se crasha, ferma tutto e avvisa
     if result.returncode != 0:
-        print(f"\n❌ ERRORE CRITICO in '{script_path}'. Processo interrotto.")
+        print(f"\n[CRITICAL ERROR] Execution failed for '{script_path}'. Pipeline halted.")
         sys.exit(1)
     
-    print(f"\n✅ COMPLETATO: {script_path}")
-    print("⏳ Pausa di 10 secondi per far raffreddare CPU e svuotare la RAM...\n")
-    time.sleep(10) # 10 secondi di respiro per il PC
+    print(f"\n[INFO] Successfully completed: {script_path}")
+    print(f"[INFO] Cooling down system for {COOLDOWN_SECONDS} seconds...\n")
+    time.sleep(COOLDOWN_SECONDS)
 
-if __name__ == "__main__":
-    print("🔥 INIZIO PIPELINE COMPLETA - MACCHINA AL LAVORO 🔥")
-    print("Mettiti comodo, ci vediamo tra un paio di giorni...\n")
+
+def run_master_pipeline() -> None:
+    print("[INFO] Initializing Master ML Pipeline...")
+    print("[INFO] This process will take significant time. Please stand by.\n")
     
-    # --- FASE 1 (Solo ECG) ---
-    print(">>> PARTENZA FASE 1: UNIMODALE <<<")
+    # --- Phase 1: Unimodal (ECG) ---
+    print(">>> STARTING PHASE 1: UNIMODAL <<<")
     run_script("src/Fase1/train_FASE1.py")
     run_script("src/Fase1/evaluate.py")
     
-    # --- FASE 2 EARLY FUSION (Il pastone) ---
-    print("\n>>> PARTENZA FASE 2: EARLY FUSION <<<")
+    # --- Phase 2: Early Fusion ---
+    print("\n>>> STARTING PHASE 2: EARLY FUSION <<<")
     run_script("src/Fase2/early_fusion/train_FASE2_early.py")
     run_script("src/Fase2/early_fusion/evaluate.py")
     
-    # --- FASE 2 LATE FUSION (I 3 Giudici) ---
-    print("\n>>> PARTENZA FASE 2: LATE FUSION <<<")
+    # --- Phase 2: Late Fusion ---
+    print("\n>>> STARTING PHASE 2: LATE FUSION <<<")
     run_script("src/Fase2/late_fusion/train_FASE2_late.py")
-    run_script("src/Fase2/late_fusion/evaluate_late.py") # <-- Assicurati che il file del tribunale si chiami così!
+    run_script("src/Fase2/late_fusion/evaluate_late.py")
 
-    print("\n🎉 MISSIONE COMPIUTA! TUTTI I MODELLI SONO STATI ADDESTRATI E VALUTATI! 🎉")
-    print("Controlla i file output_fase1.txt, output_fase2_early.txt e output_fase2_late.txt")
-
+    # --- Phase 3: Explainable AI (SHAP) ---
+    print("\n>>> STARTING PHASE 3: SHAP EXPLAINABILITY <<<")
     run_script("src/Fase3/shap_fase1.py")
     run_script("src/Fase3/shap_fase2_early.py")
     run_script("src/Fase3/shap_fase2_late.py")
+
+    print("\n[SUCCESS] Master pipeline completed. All models trained, evaluated, and explained.")
+    print("[INFO] Please review the generated output text files and SHAP plots.")
+
+
+if __name__ == "__main__":
+    run_master_pipeline()

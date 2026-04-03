@@ -1,59 +1,56 @@
 """
-=====================================================================================
-Modulo: models_fase2.py
-Progetto: ML Emozioni - Fase 2 (Multimodale Early Fusion)
-
-Descrizione:
-Architettura 1D-CNN Multimodale. 
-Prende in ingresso un tensore con 3 canali (Affect, ECG, EDA) contemporaneamente.
-Usa la Batch Normalization per stabilizzare i calcoli tra i diversi segnali.
-=====================================================================================
+model_FASE2_early.py
+Multimodal 1D-CNN architecture for Early Fusion.
+Processes a 3-channel input tensor (Affect, ECG, EDA) simultaneously.
 """
 
 import torch
 import torch.nn as nn
 from config_FASE2_early import WINDOW_SIZE
 
+
 class MultimodalEarlyFusionCNN(nn.Module):
-    def __init__(self, window_size=WINDOW_SIZE):
-        super(MultimodalEarlyFusionCNN, self).__init__()
+    def __init__(self, window_size: int = WINDOW_SIZE) -> None:
+        super().__init__()
+        self.window_size = window_size
         
-        # ==========================================
-        # 1. MODULO DI ESTRAZIONE FEATURE (A 3 CANALI)
-        # ==========================================
-        self.feature_extractor = nn.Sequential(
-            # LA MAGIA È QUI: in_channels=3 (Affect, ECG, EDA)
+        self.feature_extractor = self._build_feature_extractor()
+        self.flatten_size = self._calculate_flatten_size()
+        self.classifier = self._build_classifier()
+
+    def _build_feature_extractor(self) -> nn.Sequential:
+        return nn.Sequential(
+            # First convolutional block: 3 input channels (Affect, ECG, EDA)
             nn.Conv1d(in_channels=3, out_channels=18, kernel_size=7),
-            nn.BatchNorm1d(18), # Stabilizza i segnali fusi
+            nn.BatchNorm1d(num_features=18),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
             
+            # Second convolutional block
             nn.Conv1d(in_channels=18, out_channels=18, kernel_size=7),
-            nn.BatchNorm1d(18),
+            nn.BatchNorm1d(num_features=18),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2)
         )
+
+    def _calculate_flatten_size(self) -> int:
+        # Pass a 3-channel dummy tensor to dynamically compute the flatten size
+        dummy_input = torch.zeros(1, 3, self.window_size)
         
-        # ==========================================
-        # 2. CALCOLO AUTOMATICO FLATTEN
-        # ==========================================
-        # Simuliamo un passaggio con un tensore (Batch=1, Canali=3, Lunghezza=1000)
-        dummy_x = torch.zeros(1, 3, window_size)
-        dummy_out = self.feature_extractor(dummy_x)
-        self.flatten_size = dummy_out.view(1, -1).size(1)
-        
-        # ==========================================
-        # 3. CLASSIFICATORE FINALE
-        # ==========================================
-        self.classifier = nn.Sequential(
-            nn.Linear(self.flatten_size, 64),
+        with torch.no_grad():
+            dummy_output = self.feature_extractor(dummy_input)
+            
+        return dummy_output.view(1, -1).size(1)
+
+    def _build_classifier(self) -> nn.Sequential:
+        return nn.Sequential(
+            nn.Linear(in_features=self.flatten_size, out_features=64),
             nn.ReLU(),
-            nn.Dropout(0.5), # Dropout ridotto per non frenare troppo l'apprendimento
-            nn.Linear(64, 1) # Output binario
+            nn.Dropout(p=0.5), 
+            nn.Linear(in_features=64, out_features=1) 
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.feature_extractor(x)
-        x = torch.flatten(x, 1)
-        x = self.classifier(x)
-        return x
+        x = torch.flatten(x, start_dim=1)
+        return self.classifier(x)

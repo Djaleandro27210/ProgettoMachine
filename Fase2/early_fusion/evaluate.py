@@ -1,14 +1,15 @@
 """
-=====================================================================================
-Modulo: evaluate.py
-Descrizione: Script standalone per calcolare e stampare tutte le metriche finali
-(Accuracy, F1-Score, AUC-ROC, Report e Matrice) caricando il modello già addestrato.
-Stampa tutto a terminale e SOLO ALLA FINE salva il blocco dei risultati in output_fase2_early.txt.
-=====================================================================================
+evaluate_FASE2_early.py
+Standalone evaluation script for Phase 2 (Early Fusion). 
+Calculates and logs Accuracy, F1-Score, AUC-ROC, and Confusion Matrix.
 """
+
+import os
+import sys
+from typing import Tuple
+
 import torch
 import numpy as np
-import os
 from torch.utils.data import DataLoader
 from sklearn.metrics import (
     accuracy_score, 
@@ -18,120 +19,130 @@ from sklearn.metrics import (
     confusion_matrix
 )
 
-# Importa i tuoi moduli (assicurati che i nomi corrispondano ai tuoi file)
 from config_FASE2_early import BATCH_SIZE, MODEL_SAVE_PATH_FASE2
 from dataset_FASE2_early import PopaneDatasetMultimodal
 from model_FASE2_early import MultimodalEarlyFusionCNN
 
-def valuta_modello():
-    # 1. SETUP
+
+def get_device() -> torch.device:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"🚀 Avvio Valutazione. Dispositivo: {device}")
+    print(f"[INFO] Evaluation initialized on: {device}")
+    return device
 
-    # Carichiamo SOLO il Test Set
-    test_dataset = PopaneDatasetMultimodal(split_type="test")
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    # 2. CARICAMENTO DEL MODELLO GIA' ADDESTRATO
+def load_trained_model(device: torch.device) -> MultimodalEarlyFusionCNN:
     model = MultimodalEarlyFusionCNN().to(device)
     try:
         model.load_state_dict(torch.load(MODEL_SAVE_PATH_FASE2, map_location=device, weights_only=True))
-        print("✅ Modello caricato con successo dal disco! Nessun riaddestramento necessario.")
+        print("[INFO] Model weights loaded successfully.")
     except Exception as e:
-        print(f"❌ Impossibile trovare o caricare il modello. Hai fatto girare train_FASE2_early.py? Errore: {e}")
-        return
+        print(f"[ERROR] Failed to load model. Ensure training completed. Error: {e}")
+        sys.exit(1)
         
-    model.eval() # Modalità esame
+    model.eval()
+    return model
 
-    # Liste per salvare i risultati
-    tutte_le_label = []
-    tutte_le_predizioni = []
-    tutte_le_probabilita = []
 
-    print("\nInizio analisi dei dati di test...")
+def perform_inference(
+    model: MultimodalEarlyFusionCNN, 
+    test_loader: DataLoader, 
+    device: torch.device
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     
-    # 3. INFERENZA (Calcolo delle predizioni sui dati nuovi)
-    with torch.no_grad(): # Niente calcolo dei gradienti = velocissimo
-        for i, (inputs, labels) in enumerate(test_loader):
-            # Stampiamo a terminale il progresso in tempo reale
-            print(f"\r⏳ Elaborazione del batch {i+1}...su {len(test_loader)}", end="")
+    all_labels = []
+    all_preds = []
+    all_probs = []
+
+    print("[INFO] Running inference on test set...")
+    
+    with torch.no_grad():
+        for batch_idx, (inputs, labels) in enumerate(test_loader):
+            print(f"\r[PROCESS] Batch {batch_idx + 1}/{len(test_loader)}", end="", flush=True)
+            
             inputs, labels = inputs.to(device), labels.to(device)
             
-            # Passaggio in avanti
             outputs = model(inputs)
-            
-            # Calcolo probabilità e predizioni (0 o 1)
-            probs = torch.sigmoid(outputs).squeeze() # Squeeze per evitare problemi di dimensioni
+            probs = torch.sigmoid(outputs).squeeze() 
             preds = (probs > 0.5).float()
             
-            # Se il batch ha un solo elemento, squeeze() toglie troppe dimensioni, gestiamolo:
+            # Handle single-element batch dimension collapse
             if probs.dim() == 0:
                 probs = probs.unsqueeze(0)
                 preds = preds.unsqueeze(0)
             
-            tutte_le_probabilita.extend(probs.cpu().numpy())
-            tutte_le_predizioni.extend(preds.cpu().numpy())
-            tutte_le_label.extend(labels.cpu().numpy())
+            all_probs.extend(probs.cpu().numpy())
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
             
-    print("\n\nAnalisi completata. Calcolo delle metriche in corso...")
-
-    # 4. CALCOLO DELLE METRICHE
-    y_true = np.array(tutte_le_label).astype(int)
-    y_pred = np.array(tutte_le_predizioni).astype(int)
-    y_prob = np.array(tutte_le_probabilita)
+    print("\n[INFO] Inference complete.")
     
+    return (
+        np.array(all_labels).astype(int), 
+        np.array(all_preds).astype(int), 
+        np.array(all_probs)
+    )
+
+
+def generate_report(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndarray) -> str:
     accuracy = accuracy_score(y_true, y_pred)
     f1_macro = f1_score(y_true, y_pred, average='macro')
+    
     try:
         auc = roc_auc_score(y_true, y_prob)
     except ValueError:
         auc = float('nan') 
         
-    class_report = classification_report(
+    clf_report = classification_report(
         y_true, y_pred, 
         labels=[0, 1], 
-        target_names=['Emozione Negativa (0)', 'Emozione Positiva (1)'],
+        target_names=['Negative Emotion (0)', 'Positive Emotion (1)'],
         zero_division=0
     )
     
     cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
 
-    # 5. COSTRUZIONE DEL TESTO FINALE (IL "BLOCCHETTO" DEI RISULTATI)
-    report_text = f"""==================================================
-📊 RISULTATI FINALI DEL MODELLO EARLY FUSION
+    return f"""==================================================
+FINAL MODEL EVALUATION RESULTS - EARLY FUSION
 ==================================================
-✅ Accuracy:  {accuracy:.4f} ({accuracy*100:.1f}%)
-✅ F1-Score:  {f1_macro:.4f} (Macro Average)
-✅ AUC-ROC:   {auc:.4f}
+Accuracy:  {accuracy:.4f} ({accuracy * 100:.1f}%)
+F1-Score:  {f1_macro:.4f} (Macro Average)
+AUC-ROC:   {auc:.4f}
 
 --------------------------------------------------
-📋 CLASSIFICATION REPORT DETTAGLIATO
+DETAILED CLASSIFICATION REPORT
 --------------------------------------------------
-{class_report}
+{clf_report}
 --------------------------------------------------
-🧩 MATRICE DI CONFUSIONE
+CONFUSION MATRIX
 --------------------------------------------------
-Vero Negativo (TN): {cm[0][0]:<5} | Falso Positivo (FP): {cm[0][1]}
-Falso Negativo (FN): {cm[1][0]:<5} | Vero Positivo (TP):  {cm[1][1]}
+True Negative (TN):  {cm[0][0]:<5} | False Positive (FP): {cm[0][1]}
+False Negative (FN): {cm[1][0]:<5} | True Positive (TP):  {cm[1][1]}
 ==================================================
 """
 
-    # 6. STAMPA A TERMINALE (Così hai subito i risultati a vista)
-    print("\n" + report_text)
 
-    # 7. SALVATAGGIO SU FILE IN MODO SICURO
+def save_report(report_text: str, filename: str = "output_fase2_early.txt") -> None:
     try:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        output_path = os.path.join(current_dir, 'output_fase2_early.txt')
-        
+        output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(report_text)
-            
-        print(f"✅ Report salvato con successo nel file: {output_path}")
-        
+        print(f"[INFO] Report saved to: {output_path}")
     except Exception as e:
-        print(f"\n⚠️ ATTENZIONE: Impossibile salvare il file di testo ({e}).")
-        print("Tranquillo, i risultati sono comunque stampati qui sopra! Nessun dato perso.")
+        print(f"[WARNING] Failed to save report to disk. Error: {e}")
+
+
+def evaluate_model() -> None:
+    device = get_device()
+    
+    test_loader = DataLoader(PopaneDatasetMultimodal(split_type="test"), batch_size=BATCH_SIZE, shuffle=False)
+    model = load_trained_model(device)
+    
+    y_true, y_pred, y_prob = perform_inference(model, test_loader, device)
+    
+    report_text = generate_report(y_true, y_pred, y_prob)
+    print("\n" + report_text)
+    save_report(report_text)
+
 
 if __name__ == "__main__":
-    valuta_modello()
+    evaluate_model()

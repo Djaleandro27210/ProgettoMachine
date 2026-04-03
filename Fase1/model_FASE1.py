@@ -1,69 +1,55 @@
 """
-=====================================================================================
-Modulo: models.py
-Progetto: ML Emozioni (Popane Dataset) - Fase 1 (ECG)
-
-Descrizione:
-Definizione dell'architettura della Rete Neurale 1D-CNN, ispirata al paper di 
-riferimento. Prende in input l'ECG (1 canale, lunghezza variabile) e restituisce
-una probabilità (Positivo vs Negativo).
-=====================================================================================
+model_FASE1.py
+1D-CNN architecture for binary emotion classification using ECG signals.
 """
 
 import torch
 import torch.nn as nn
 from config_FASE1 import WINDOW_SIZE
 
-class Emotion1DCNN(nn.Module):
-    def __init__(self, window_size=WINDOW_SIZE):
-        super(Emotion1DCNN, self).__init__()
-        
-        # ==========================================
-        # 1. MODULO DI FEATURE EXTRACTION (Convoluzioni)
-        # ==========================================
-        self.feature_extractor = nn.Sequential(
-            # C1: 18 filtri (kernel_size=7 come da paper) --> Output: (124)
 
+class Emotion1DCNN(nn.Module):
+    def __init__(self, window_size: int = WINDOW_SIZE) -> None:
+        super().__init__()
+        self.window_size = window_size
+        
+        self.feature_extractor = self._build_feature_extractor()
+        self.flatten_size = self._calculate_flatten_size()
+        self.classifier = self._build_classifier()
+
+    def _build_feature_extractor(self) -> nn.Sequential:
+        return nn.Sequential(
+            # First convolutional block
             nn.Conv1d(in_channels=1, out_channels=18, kernel_size=7),
-           nn.BatchNorm1d(18),
+            nn.BatchNorm1d(num_features=18),
             nn.ReLU(),
-            # S1: Down-sampling (Pooling)-->output: (62)
             nn.MaxPool1d(kernel_size=2),
             
-            # C2: 18 filtri (kernel_size=7) --> Output: (56)
+            # Second convolutional block
             nn.Conv1d(in_channels=18, out_channels=18, kernel_size=7),
-           nn.BatchNorm1d(18),
+            nn.BatchNorm1d(num_features=18),
             nn.ReLU(),
-            # S2: Down-sampling (Pooling)-->output: (28)
             nn.MaxPool1d(kernel_size=2)
         )
+
+    def _calculate_flatten_size(self) -> int:
+        # Dynamically calculate flatten size to support variable WINDOW_SIZE
+        dummy_input = torch.zeros(1, 1, self.window_size)
         
-        # ==========================================
-        # 2. CALCOLO AUTOMATICO DIMENSIONE FLATTEN
-        # ==========================================
-        # Facciamo passare un "tensore finto" di zeri attraverso i layer appena creati
-        # per vedere la dimensione esatta in uscita. (A prova di bomba se cambi WINDOW_SIZE)
-        dummy_x = torch.zeros(1, 1, window_size)
-        dummy_out = self.feature_extractor(dummy_x)
-        self.flatten_size = dummy_out.view(1, -1).size(1)
-        
-        # ==========================================
-        # 3. MODULO DI CLASSIFICAZIONE (Fully Connected)
-        # ==========================================
-        self.classifier = nn.Sequential(
-            nn.Linear(self.flatten_size, 64),
+        with torch.no_grad():
+            dummy_output = self.feature_extractor(dummy_input)
+            
+        return dummy_output.view(1, -1).size(1)
+
+    def _build_classifier(self) -> nn.Sequential:
+        return nn.Sequential(
+            nn.Linear(in_features=self.flatten_size, out_features=64),
             nn.ReLU(),
-            nn.Dropout(0.4), # Dropout al 30% per evitare l'Overfitting!
-            nn.Linear(64, 1) # Output: 1 singolo neurone (per classificazione Binaria)
+            nn.Dropout(p=0.4), 
+            nn.Linear(in_features=64, out_features=1) 
         )
 
-    def forward(self, x):
-        # Passaggio 1: Estrazione feature
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.feature_extractor(x)
-        
-        # Passaggio 2: Flatten (appiattiamo la matrice in un vettore 1D)
-        x = torch.flatten(x, 1)
-        
-        # Passaggio 3: Classificazione finale
-        x = self.classifier(x)
-        return x
+        x = torch.flatten(x, start_dim=1)
+        return self.classifier(x)

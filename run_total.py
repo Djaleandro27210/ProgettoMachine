@@ -44,7 +44,7 @@ def run_master_pipeline() -> None:
     # --- Phase 2: Late Fusion ---
     print("\n>>> STARTING PHASE 2: LATE FUSION <<<")
     run_script("src/Fase2/late_fusion/train_FASE2_late.py")
-    run_script("src/Fase2/late_fusion/evaluate_late.py")
+    run_script("src/Fase2/late_fusion/evaluate.py")
 
     # --- Phase 3: Explainable AI (SHAP) ---
     print("\n>>> STARTING PHASE 3: SHAP EXPLAINABILITY <<<")
